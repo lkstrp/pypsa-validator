@@ -8,10 +8,12 @@ def get_plot_comparison_table_html(commit_id, plots):
 
     rows = []
     for plot in plots:
+        url_a = base_url + "base/" + plot
+        url_b = base_url + "feature/" + plot
         rows.append(
             [
-                f'<img src="{base_url + 'base/' + plot}" alt="Image not found">',
-                f'<img src="{base_url + 'feature/' + plot}" alt="Image not found">',
+                f'<img src="{url_a}" alt="Image not found">',
+                f'<img src="{url_b}" alt="Image not found">',
             ]
         )
 
