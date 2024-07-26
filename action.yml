@@ -1,0 +1,187 @@
+name: 'PyPSA Validator Bot'
+description: 'PyPSA Validator Bot'
+autor: 'lkstrp'
+inputs:
+  step:
+    description: 'Step to run'
+    required: true
+    type: choice
+    options:
+      - 'run-self-hosted-validation'
+      - 'create-comment'
+  # Needed for 'run-self-hosted-validation' step
+  env_file:
+    description: 'File for conda/mamba environment'
+    type: string
+  snakemake_config:
+    description: 'Snakemake config file'
+    type: string
+  pre_command:
+    description: 'Pre-command to run before validation'
+    type: string
+  # Needed for 'create-comment' step
+  plots:
+    description: 'Plots to be shown in comment'
+  repo_private_key:
+    description: 'Private key to access the plots repo'
+    type: string
+
+# Reminder
+# - ${{ github.repository }} -> 'user/repo'
+# - ${{ github.event.repository.name }} -> 'repo'
+
+runs:
+  using: "composite"
+  steps:
+
+    # ----------------------------------------
+    # 'run-self-hosted-validation' step
+    # ----------------------------------------
+    - name: Run self-hosted validation
+      if: ${{ inputs.step == 'run-self-hosted-validation' }}
+      run: |
+        ~/run_validation.sh \
+        --repo ${{ github.event.repository.name }} \
+        --branch ${{ github.head_ref }} \
+        --base_branch ${{ github.head_ref }} \
+        --env_file ${{ inputs.env_file }} \
+        --config_file ${{ inputs.snakemake_config }} \
+        --pre_command ${{ inputs.pre_command }}
+      shell: bash
+
+    - name: Checkout PyPSA Validator
+      uses: actions/checkout@v4
+      with:
+        repository: lkstrp/pypsa-validator
+        ref: ${{ github.event.repository.name }}
+        ssh-key: ${{ inputs.repo_private_key }}
+
+    # ----------------------------------------
+    # 'create-comment' step
+    # ----------------------------------------
+    - name: Checkout plot repo
+      if: ${{ inputs.step == 'create-comment' }}
+      uses: actions/checkout@v4
+      with:
+        repository: lkstrp/pypsa-validator
+        ref: ${{ github.event.repository.name }}
+        ssh-key: ${{ inputs.repo_private_key }}
+
+    - name: Download artifacts
+      if: ${{ inputs.step == 'create-comment' }}
+      uses: actions/download-artifact@v4
+
+    - name: Upload relevant plots
+      if: ${{ inputs.step == 'create-comment' }}
+      run: |
+        rm -rf _validation-images
+        mkdir -p _validation-images/feature
+        mkdir -p _validation-images/base
+        
+        # Copy plots
+        IFS=$'\n' read -r -a plots <<< $(echo "${{ fromJSON(inputs.plots) }}")
+        for plot in "${plots[@]}"
+        do
+            echo "Copying ${plot}"
+            cp -r "results (feature branch)${plot}" "_validation-images/feature"
+            cp -r "results (base branch)${plot}" "_validation-images/base"
+        done
+
+        # Bot config
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+
+        # Add plots to repo branch
+        git add _validation-images
+        git commit -m "[github-actions.ci] upload validation images to show in comment" || true # ignore if no changes
+        git push origin ${{ github.event.repository.name }}
+        echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Draft comment
+      if: ${{ inputs.step == 'create-comment' }}
+      run: |
+        # Get potential changes from main branch (for next step)
+        git fetch origin
+        git merge origin/main --allow-unrelated-histories
+
+        # Get plot files
+        for file in _validation-images/base/*; do
+          [ -e "$file" ] || continue
+          plot_files+=( "$(basename "$file")" )
+        done
+
+        pip install -r requirements.txt
+        python draft_comment.py \
+        --repo ${{ github.repository }} \
+        --dir_base "results (base branch)" \
+        --dir_feature "results (feature branch)" \
+        --plots_commit_id ${{ env.COMMIT_ID }} \
+        --plots "${plot_files[@]}" \
+        --artifact_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+        --feature_branch_name ${{ github.head_ref }} \
+        --base_branch_name ${{ github.base_ref }} \
+        --feature_commit ${{ github.event.before }} \
+        --base_commit ${{ github.event.after }} \
+        > comment.txt
+      shell: bash
+
+    - name: Retrieve or create comment
+      if: ${{ inputs.step == 'create-comment' }}
+      id: comment
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const owner = context.repo.owner;
+          const repo = context.repo.repo;
+          const issue_number = context.issue.number;
+          
+          // Fetching all comments of pr
+          const comments = await github.rest.issues.listComments({
+            owner,
+            repo,
+            issue_number
+          });
+
+            // Distinctive keyword present in bot's comments 
+          const distinctiveKeyword = '_val-bot-id-keyword_';
+
+          // Searching for existing comment with the distinctive keyword
+          let botsComment;
+          for (let { user, id, body } of comments.data.reverse()) {
+            if (body.includes(distinctiveKeyword)) {
+              botsComment = { id, body };
+              break;
+            }
+          }
+          
+          // If found return its id
+          if (botsComment) {
+            return botsComment.id; 
+          } else {
+            // Creating a new comment if it doesn't exist yet and returning its ID.
+            const { data: newComment } = await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: `Initial message`
+            });
+            
+            return newComment.id;
+          }
+
+    - name: Update comment
+      if: ${{ inputs.step == 'create-comment' }}
+      uses: actions/github-script@v7.0.1
+      with:
+        script: |
+          const fs = require('fs');
+          let comment = fs.readFileSync('comment.txt', 'utf8');
+      
+          github.rest.issues.updateComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: ${{ steps.comment.outputs.result }},
+            body: comment
+          });
+

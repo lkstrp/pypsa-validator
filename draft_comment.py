@@ -98,18 +98,19 @@ def get_subtext(repo, feature_branch, base_branch, feature_commit="", base_commi
         feature_commit = f"([{feature_commit[:7]}](https://github.com/{repo}/commits/{feature_commit})) "
     if base_commit:
         base_commit = (
-            f" ([{base_commit[:7]}](https://github.com/{repo}/commits/{base_commit})) "
+            f"([{base_commit[:7]}](https://github.com/{repo}/commits/{base_commit}))"
         )
 
-    return f"Comparing {feature_branch}{feature_commit} with {base_branch}{base_commit}.\n\
-Last updated on {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}."
+    return f"Comparing {feature_branch} {feature_commit}with {base_branch} {base_commit}.\n\
+Last updated on {pd.Timestamp.now().tz_localize('UTC').tz_convert('Europe/Berlin').strftime('%Y-%m-%d %H:%M:%S %Z')}."
 
 
 def combine_texts(artifact_url, plot_table, comparison_table, subtext):
     return f"\
+<!-- _val-bot-id-keyword_ -->\n\
 ## Validator Report\n\
 I am the Validator. Download all artifacts [here]({artifact_url}).\n\
-I'll be back and edit this comment for every commit. \n\n\
+I'll be back and edit this comment for each new commit.\n\n\
 <details>\n\
     <summary>Result plots comparison</summary>\n\
 {plot_table}\n\
@@ -121,26 +122,21 @@ I'll be back and edit this comment for every commit. \n\n\
 {comparison_table}\n\
 </details>\n\
 \n\
+\n\
 {subtext}\
 "
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--repo", type=str, default="PyPSA/pypsa-ariadne")
-    parser.add_argument("--dir_base", type=str, default="results (base)")
-    parser.add_argument("--dir_feature", type=str, default="results (feature)")
-    parser.add_argument(
-        "--plots_commit_id",
-        type=str,
-        default="53cae58b007e4ff119155ff41b1bc1d5c36c63db",
-    )
-    parser.add_argument("--plots", nargs="*", type=str, default=["capacity.png"])
-    parser.add_argument(
-        "--artifact_url", nargs="*", type=str, default="https://www.google.com"
-    )
-    parser.add_argument("--feature_branch_name", type=str, default="lkstrp/dev")
-    parser.add_argument("--base_branch_name", type=str, default="main")
+    parser.add_argument("--repo", type=str)
+    parser.add_argument("--dir_base", type=str)
+    parser.add_argument("--dir_feature", type=str)
+    parser.add_argument("--plots_commit_id", type=str)
+    parser.add_argument("--plots", nargs="*", type=str)
+    parser.add_argument("--artifact_url", type=str)
+    parser.add_argument("--feature_branch_name", type=str)
+    parser.add_argument("--base_branch_name", type=str)
     parser.add_argument("--feature_commit", type=str, default="")
     parser.add_argument("--base_commit", type=str, default="")
 
