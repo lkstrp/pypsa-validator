@@ -4,7 +4,7 @@ import argparse
 
 
 def get_plot_comparison_table_html(commit_id, plots):
-    base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{commit_id}/dir-validation-images/"
+    base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{commit_id}/_validation-images/"
 
     rows = []
     for plot in plots:
