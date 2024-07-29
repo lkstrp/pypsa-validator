@@ -43,18 +43,11 @@ runs:
         ~/run_validation.sh \
         --repo ${{ github.event.repository.name }} \
         --branch ${{ github.head_ref }} \
-        --base_branch ${{ github.head_ref }} \
+        --base_branch ${{ github.base_ref }} \
         --env_file ${{ inputs.env_file }} \
         --config_file ${{ inputs.snakemake_config }} \
-        --pre_command ${{ inputs.pre_command }}
+        --pre_command "${{ inputs.pre_command }}"
       shell: bash
-
-    - name: Checkout PyPSA Validator
-      uses: actions/checkout@v4
-      with:
-        repository: lkstrp/pypsa-validator
-        ref: ${{ github.event.repository.name }}
-        ssh-key: ${{ inputs.repo_private_key }}
 
     # ----------------------------------------
     # 'create-comment' step
@@ -78,14 +71,20 @@ runs:
         mkdir -p _validation-images/feature
         mkdir -p _validation-images/base
         
+        echo "Plots: ${{ inputs.plots }}"
+        
         # Copy plots
-        IFS=$'\n' read -r -a plots <<< $(echo "${{ fromJSON(inputs.plots) }}")
-        for plot in "${plots[@]}"
+        read -a plots_array <<< ${{ inputs.plots }}
+        echo "Plots: ${plots_array[@]}"
+          
+        for plot in "${plots_array[@]}"
         do
-            echo "Copying ${plot}"
-            cp -r "results (feature branch)${plot}" "_validation-images/feature"
-            cp -r "results (base branch)${plot}" "_validation-images/base"
+          echo "Copying ${plot}"
+          cp -r "results (feature branch)${plot}" "_validation-images/feature"
+          cp -r "results (base branch)${plot}" "_validation-images/base"
         done
+
+        ls -R _validation-images
 
         # Bot config
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -101,7 +100,7 @@ runs:
     - name: Draft comment
       if: ${{ inputs.step == 'create-comment' }}
       run: |
-        # Get potential changes from main branch (for next step)
+        # Get potential changes from main branch
         git fetch origin
         git merge origin/main --allow-unrelated-histories
 
@@ -110,6 +109,10 @@ runs:
           [ -e "$file" ] || continue
           plot_files+=( "$(basename "$file")" )
         done
+
+        # Read in validator-metadata.yml
+        main_commit_hash=$(yq e '.metadata.main_commit_hash' validator-metadata/validator-metadata.yml)
+        feature_commit_hash=$(yq e '.metadata.feature_commit_hash' validator-metadata/validator-metadata.yml)
 
         pip install -r requirements.txt
         python draft_comment.py \
@@ -121,8 +124,8 @@ runs:
         --artifact_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
         --feature_branch_name ${{ github.head_ref }} \
         --base_branch_name ${{ github.base_ref }} \
-        --feature_commit ${{ github.event.before }} \
-        --base_commit ${{ github.event.after }} \
+        --feature_commit $feature_commit_hash \
+        --base_commit $main_commit_hash \
         > comment.txt
       shell: bash
 
@@ -172,7 +175,7 @@ runs:
 
     - name: Update comment
       if: ${{ inputs.step == 'create-comment' }}
-      uses: actions/github-script@v7.0.1
+      uses: actions/github-script@v7
       with:
         script: |
           const fs = require('fs');
