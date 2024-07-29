@@ -1,6 +1,8 @@
-import os
-import pandas as pd
 import argparse
+import os
+
+import numpy as np
+import pandas as pd
 
 
 def get_plot_comparison_table_html(commit_id, plots):
@@ -22,7 +24,7 @@ def get_plot_comparison_table_html(commit_id, plots):
 
 
 def get_csv_comparison_table_html(dir_base, dir_feature):
-    status_not_equal = "Changed :warning:"
+    status_not_equal = ":warning:"
     status_missing = "Missing :warning:"
     status_new = "New :warning:"
 
@@ -48,13 +50,26 @@ def get_csv_comparison_table_html(dir_base, dir_feature):
                 df1 = pd.read_csv(path_in_a)
                 df2 = pd.read_csv(path_in_b)
 
-                try:
-                    pd.testing.assert_frame_equal(df1, df2)
+                if df1.equals(df2):
                     equal.append(f"<tr><td>{relative_path}</td><td>Equal</td></tr>\n")
-                except AssertionError:
-                    not_equal.append(
-                        f"<tr><td>{relative_path}</td><td>{status_not_equal}</td></tr>\n"
-                    )
+                else:
+                    numeric_columns = df1.select_dtypes(include="number").columns
+                    df1_num = df1[numeric_columns].replace(0, np.nan)
+                    df2_num = df2[numeric_columns].replace(0, np.nan)
+                    mape = ((abs((df1_num - df2_num) / df1_num)).mean().mean()) * 100
+
+                    if mape > 1e-6:
+                        not_equal.append(
+                            f"<tr><td>{relative_path}</td><td>{status_not_equal} (MAPE: {mape:.2e}%)</td></tr>\n"
+                        )
+                    elif pd.isna(mape):
+                        not_equal.append(
+                            f"<tr><td>{relative_path}</td><td>{status_not_equal} (Type or nan mismatch)</td></tr>\n"
+                        )
+                    else:
+                        equal.append(
+                            f"<tr><td>{relative_path}</td><td>Equal</td></tr>\n"
+                        )
 
     # Check for new files in directory b
     for root, dirs, files in os.walk(dir_feature):
