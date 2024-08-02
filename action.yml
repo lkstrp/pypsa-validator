@@ -52,6 +52,34 @@ runs:
     # ----------------------------------------
     # 'create-comment' step
     # ----------------------------------------
+    - name: Checkout main repo
+      if: ${{ inputs.step == 'create-comment' }}
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get variables from repo
+      if: ${{ inputs.step == 'create-comment' }}
+      id: env-variables-repo
+      run: |
+        # snakemake config prefix
+        config_prefix=$(yq eval '.run.prefix' ${{ inputs.snakemake_config }})
+        echo "Config prefix: ${config_prefix}"
+        echo "config_prefix=${config_prefix}" >> $GITHUB_OUTPUT
+
+        # git diff config
+        rm -f ~/git_diff_config.txt
+        git_diff_config=$(git diff origin/${{ github.base_ref }}..origin/${{ github.head_ref }} -- ${{ inputs.snakemake_config }})
+        echo "Git diff config: ${git_diff_config}"
+        echo "git_diff_config=${git_diff_config}" >> ~/git_diff_config.txt
+
+        # Assert variables found
+        if [[ -z $config_prefix ]]; then
+          echo "Error: Config prefix not found"
+          exit 1
+        fi
+      shell: bash
+
     - name: Checkout plot repo
       if: ${{ inputs.step == 'create-comment' }}
       uses: actions/checkout@v4
@@ -63,38 +91,57 @@ runs:
     - name: Download artifacts
       if: ${{ inputs.step == 'create-comment' }}
       uses: actions/download-artifact@v4
+  
+    - name: Get variables from artifacts
+      if: ${{ inputs.step == 'create-comment' }}
+      id: env-variables-artifacts
+      run: |
+        # Get compared hashes
+        hash_base=$(yq e '.metadata.hash_base' validator-metadata/validator-metadata.yml)
+        feature_commit_hash=$(yq e '.metadata.feature_commit_hash' validator-metadata/validator-metadata.yml)
+
+        # Assert variables found
+        if [[ -z $hash_base || -z $feature_commit_hash ]]; then
+          echo "Error: Commit hashes not found"
+          exit 1
+        fi
+
+        # Print and save variables
+        echo "Main commit hash: ${hash_base}"
+        echo "Feature commit hash: ${feature_commit_hash}"
+        echo "hash_base=${hash_base}" >> $GITHUB_OUTPUT
+        echo "hash_feature=${feature_commit_hash}" >> $GITHUB_OUTPUT
+
+      shell: bash
 
     - name: Upload relevant plots
+      id: upload-plots
       if: ${{ inputs.step == 'create-comment' }}
       run: |
         rm -rf _validation-images
         mkdir -p _validation-images/feature
         mkdir -p _validation-images/base
-        
-        echo "Plots: ${{ inputs.plots }}"
-        
-        # Copy plots
+                
+        # Copy plots  
         read -a plots_array <<< ${{ inputs.plots }}
         echo "Plots: ${plots_array[@]}"
-          
         for plot in "${plots_array[@]}"
         do
           echo "Copying ${plot}"
-          cp -r "results (feature branch)${plot}" "_validation-images/feature"
-          cp -r "results (base branch)${plot}" "_validation-images/base"
+          cp -r "results (feature branch)/${{ steps.env-variables-repo.outputs.config_prefix }}/${plot}" "_validation-images/feature"
+          cp -r "results (base branch)/${{ steps.env-variables-repo.outputs.config_prefix }}/${plot}" "_validation-images/base"
         done
-
-        ls -R _validation-images
 
         # Bot config
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --global user.name "github-actions[bot]"
 
         # Add plots to repo branch
+        echo "Adding plots to repo branch"
         git add _validation-images
         git commit -m "[github-actions.ci] upload validation images to show in comment" || true # ignore if no changes
         git push origin ${{ github.event.repository.name }}
-        echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV
+        echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
       shell: bash
 
     - name: Draft comment
@@ -104,28 +151,23 @@ runs:
         git fetch origin
         git merge origin/main --allow-unrelated-histories
 
-        # Get plot files
-        for file in _validation-images/base/*; do
-          [ -e "$file" ] || continue
-          plot_files+=( "$(basename "$file")" )
-        done
+        git_diff_config=$(cat ~/git_diff_config.txt)
+        export GIT_DIFF_CONFIG=$(cat ~/git_diff_config.txt)
 
-        # Read in validator-metadata.yml
-        main_commit_hash=$(yq e '.metadata.main_commit_hash' validator-metadata/validator-metadata.yml)
-        feature_commit_hash=$(yq e '.metadata.feature_commit_hash' validator-metadata/validator-metadata.yml)
-
+        echo "${{ inputs.plots }}"
         pip install -r requirements.txt
         python draft_comment.py \
         --repo ${{ github.repository }} \
+        --artifact_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+        --branch_name_base ${{ github.base_ref }} \
+        --branch_name_feature ${{ github.head_ref }} \
+        --hash_base "${{ steps.env-variables-artifacts.outputs.hash_base }}" \
+        --hash_feature "${{ steps.env-variables-artifacts.outputs.hash_feature }}" \
+        --config_prefix "${{ steps.env-variables-repo.outputs.config_prefix }}" \
         --dir_base "results (base branch)" \
         --dir_feature "results (feature branch)" \
-        --plots_commit_id ${{ env.COMMIT_ID }} \
-        --plots "${plot_files[@]}" \
-        --artifact_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-        --feature_branch_name ${{ github.head_ref }} \
-        --base_branch_name ${{ github.base_ref }} \
-        --feature_commit $feature_commit_hash \
-        --base_commit $main_commit_hash \
+        --plots_hash ${{ steps.upload-plots.outputs.COMMIT_ID }} \
+        --plots "${{ inputs.plots }}" \
         > comment.txt
       shell: bash
 
@@ -167,7 +209,7 @@ runs:
               owner,
               repo,
               issue_number,
-              body: `Initial message`
+              body: `<!-- ${distinctiveKeyword} --> Initializing comment...`
             });
             
             return newComment.id;
