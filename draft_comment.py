@@ -135,6 +135,8 @@ class Comment:
         branch_name_base: str,
         branch_name_feature: str,
         config_prefix: str,
+        ahead_count: str,
+        behind_count: str,
         git_diff_config: str,
         hash_base: str,
         hash_feature: str,
@@ -150,6 +152,8 @@ class Comment:
         self.branch_name_base = branch_name_base
         self.config_prefix = config_prefix
         self.git_diff_config = git_diff_config
+        self.ahead_count = ahead_count
+        self.behind_count = behind_count
         self.hash_base = hash_base
         self.hash_feature = hash_feature
         self.dir_base = dir_base
@@ -188,7 +192,7 @@ class Comment:
             f"<details>\n"
             f"    <summary>:warning: Config changes detected!</summary>\n"
             f"\n"
-            f"Results may differ due to these changes\n"
+            f"Results may differ due to these changes:\n"
             f"```diff\n"
             f"{self.git_diff_config}\n"
             f"```\n"
@@ -345,12 +349,12 @@ class Comment:
         if self.hash_feature:
             hash_feature = (
                 f"([{self.hash_feature[:7]}](https://github.com/"
-                "{self.repo}/commits/{self.hash_feature})) "
+                f"{self.repo}/commits/{self.hash_feature})) "
             )
         if self.hash_base:
             hash_base = (
                 f"([{self.hash_base[:7]}](https://github.com/"
-                "{self.repo}/commits/{self.hash_base}))"
+                f"{self.repo}/commits/{self.hash_base}))"
             )
         time = (
             pd.Timestamp.now()
@@ -361,6 +365,8 @@ class Comment:
         return (
             f"Comparing {self.branch_name_feature} {hash_feature}with "
             f"{self.branch_name_base} {hash_base}.\n"
+            f"Branch is {self.ahead_count} commits ahead and {self.behind_count} "
+            f"commits behind `{self.branch_name_base}`.\n"
             f"Last updated on {time}."
         )
 
@@ -410,6 +416,8 @@ if __name__ == "__main__":
         hash_feature=args.hash_feature,
         config_prefix=args.config_prefix,
         git_diff_config=os.getenv("GIT_DIFF_CONFIG", ""),
+        ahead_count=os.getenv("AHEAD_COUNT", ""),
+        behind_count=os.getenv("BEHIND_COUNT", ""),
         dir_base=args.dir_base,
         dir_feature=args.dir_feature,
         plots_hash=args.plots_hash,

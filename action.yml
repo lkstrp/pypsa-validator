@@ -52,6 +52,38 @@ runs:
     # ----------------------------------------
     # 'create-comment' step
     # ----------------------------------------
+    - name: Download artifacts
+      if: ${{ inputs.step == 'create-comment' }}
+      uses: actions/download-artifact@v4
+    
+    - name: Move artifacts to home directory
+      run: |
+        # Move artifacts to home directory
+        mkdir $HOME/artifacts
+        mv ./* $HOME/artifacts
+      shell: bash
+  
+    - name: Get variables from artifacts
+      if: ${{ inputs.step == 'create-comment' }}
+      id: env-variables-artifacts
+      run: |
+        # Get compared hashes
+        hash_base=$(yq e '.metadata.hash_base' $HOME/artifacts/validator-metadata/validator-metadata.yml)
+        hash_feature=$(yq e '.metadata.hash_feature' $HOME/artifacts/validator-metadata/validator-metadata.yml)
+
+        # Assert variables found  
+        if [[ -z $hash_base || -z $hash_feature ]]; then
+          echo "Error: Commit hashes not found"
+          exit 1
+        fi
+
+        # Print and save variables
+        echo "Main commit hash: ${hash_base}"
+        echo "Feature commit hash: ${hash_feature}"
+        echo "hash_base=${hash_base}" >> $GITHUB_OUTPUT
+        echo "hash_feature=${hash_feature}" >> $GITHUB_OUTPUT
+      shell: bash
+
     - name: Checkout main repo
       if: ${{ inputs.step == 'create-comment' }}
       uses: actions/checkout@v4
@@ -67,17 +99,22 @@ runs:
         echo "Config prefix: ${config_prefix}"
         echo "config_prefix=${config_prefix}" >> $GITHUB_OUTPUT
 
-        # git diff config
-        rm -f ~/git_diff_config.txt
-        git_diff_config=$(git diff origin/${{ github.base_ref }}..origin/${{ github.head_ref }} -- ${{ inputs.snakemake_config }})
-        echo "Git diff config: ${git_diff_config}"
-        echo "git_diff_config=${git_diff_config}" >> ~/git_diff_config.txt
 
-        # Assert variables found
-        if [[ -z $config_prefix ]]; then
-          echo "Error: Config prefix not found"
-          exit 1
-        fi
+        # Get git diff of used snakemake config
+        git_diff_config=$(git diff ${{ steps.env-variables-artifacts.outputs.hash_base }} ${{ steps.env-variables-artifacts.outputs.hash_feature }} -- ${{ inputs.snakemake_config }})
+        # echo "GIT_DIFF_CONFIG='${git_diff_config}'" >> $GITHUB_ENV
+        echo "GIT_DIFF_CONFIG<<EOF" >> $GITHUB_ENV
+        echo "${git_diff_config}" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+        echo "git_diff_config:\n${git_diff_config}"
+
+        # Get the number of commits ahead of main
+        behind_count=$(git rev-list --right-only --count ${{ steps.env-variables-artifacts.outputs.hash_feature }}...${{ steps.env-variables-artifacts.outputs.hash_base }})
+        ahead_count=$(git rev-list --left-only --count ${{ steps.env-variables-artifacts.outputs.hash_feature }}...${{ steps.env-variables-artifacts.outputs.hash_base }})
+        echo "BEHIND_COUNT=${behind_count}" >> $GITHUB_ENV
+        echo "behind_count: ${behind_count}"
+        echo "AHEAD_COUNT=${ahead_count}" >> $GITHUB_ENV
+        echo "ahead_count: ${ahead_count}"
       shell: bash
 
     - name: Checkout plot repo
@@ -87,32 +124,6 @@ runs:
         repository: lkstrp/pypsa-validator
         ref: ${{ github.event.repository.name }}
         ssh-key: ${{ inputs.repo_private_key }}
-
-    - name: Download artifacts
-      if: ${{ inputs.step == 'create-comment' }}
-      uses: actions/download-artifact@v4
-  
-    - name: Get variables from artifacts
-      if: ${{ inputs.step == 'create-comment' }}
-      id: env-variables-artifacts
-      run: |
-        # Get compared hashes
-        hash_base=$(yq e '.metadata.hash_base' validator-metadata/validator-metadata.yml)
-        feature_commit_hash=$(yq e '.metadata.feature_commit_hash' validator-metadata/validator-metadata.yml)
-
-        # Assert variables found
-        if [[ -z $hash_base || -z $feature_commit_hash ]]; then
-          echo "Error: Commit hashes not found"
-          exit 1
-        fi
-
-        # Print and save variables
-        echo "Main commit hash: ${hash_base}"
-        echo "Feature commit hash: ${feature_commit_hash}"
-        echo "hash_base=${hash_base}" >> $GITHUB_OUTPUT
-        echo "hash_feature=${feature_commit_hash}" >> $GITHUB_OUTPUT
-
-      shell: bash
 
     - name: Upload relevant plots
       id: upload-plots
@@ -128,8 +139,8 @@ runs:
         for plot in "${plots_array[@]}"
         do
           echo "Copying ${plot}"
-          cp -r "results (feature branch)/${{ steps.env-variables-repo.outputs.config_prefix }}/${plot}" "_validation-images/feature"
-          cp -r "results (base branch)/${{ steps.env-variables-repo.outputs.config_prefix }}/${plot}" "_validation-images/base"
+          cp -r "$HOME/artifacts/results (feature branch)/${{ steps.env-variables-repo.outputs.config_prefix }}/${plot}" "_validation-images/feature"
+          cp -r "$HOME/artifacts/results (base branch)/${{ steps.env-variables-repo.outputs.config_prefix }}/${plot}" "_validation-images/base"
         done
 
         # Bot config
@@ -151,9 +162,6 @@ runs:
         git fetch origin
         git merge origin/main --allow-unrelated-histories
 
-        git_diff_config=$(cat ~/git_diff_config.txt)
-        export GIT_DIFF_CONFIG=$(cat ~/git_diff_config.txt)
-
         echo "${{ inputs.plots }}"
         pip install -r requirements.txt
         python draft_comment.py \
@@ -164,8 +172,8 @@ runs:
         --hash_base "${{ steps.env-variables-artifacts.outputs.hash_base }}" \
         --hash_feature "${{ steps.env-variables-artifacts.outputs.hash_feature }}" \
         --config_prefix "${{ steps.env-variables-repo.outputs.config_prefix }}" \
-        --dir_base "results (base branch)" \
-        --dir_feature "results (feature branch)" \
+        --dir_base "$HOME/artifacts/results (base branch)" \
+        --dir_feature "$HOME/artifacts/results (feature branch)" \
         --plots_hash ${{ steps.upload-plots.outputs.COMMIT_ID }} \
         --plots "${{ inputs.plots }}" \
         > comment.txt
