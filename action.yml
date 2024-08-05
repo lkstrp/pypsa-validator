@@ -40,7 +40,7 @@ runs:
     - name: Run self-hosted validation
       if: ${{ inputs.step == 'run-self-hosted-validation' }}
       run: |
-        ~/run_validation.sh \
+        ~/runner-scripts/run_validation.sh \
         --repo ${{ github.repository }} \
         --branch ${{ github.head_ref }} \
         --base_branch ${{ github.base_ref }} \
@@ -57,6 +57,7 @@ runs:
       uses: actions/download-artifact@v4
     
     - name: Move artifacts to home directory
+      if: ${{ inputs.step == 'create-comment' }}
       run: |
         # Move artifacts to home directory
         mkdir $HOME/artifacts
@@ -122,7 +123,7 @@ runs:
       uses: actions/checkout@v4
       with:
         repository: lkstrp/pypsa-validator
-        ref: ${{ github.event.repository.name }}
+        ref: ${{ github.repository }}
         ssh-key: ${{ inputs.repo_private_key }}
 
     - name: Upload relevant plots
@@ -151,7 +152,7 @@ runs:
         echo "Adding plots to repo branch"
         git add _validation-images
         git commit -m "[github-actions.ci] upload validation images to show in comment" || true # ignore if no changes
-        git push origin ${{ github.event.repository.name }}
+        git push origin ${{ github.repository }}
         echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
       shell: bash
 
