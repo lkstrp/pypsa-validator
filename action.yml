@@ -41,7 +41,7 @@ runs:
       if: ${{ inputs.step == 'run-self-hosted-validation' }}
       run: |
         ~/run_validation.sh \
-        --repo ${{ github.event.repository.name }} \
+        --repo ${{ github.repository }} \
         --branch ${{ github.head_ref }} \
         --base_branch ${{ github.base_ref }} \
         --env_file ${{ inputs.env_file }} \
