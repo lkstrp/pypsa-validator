@@ -25,6 +25,11 @@ inputs:
   repo_private_key:
     description: 'Private key to access the plots repo'
     type: string
+  
+  dev:
+    description: 'Run in development mode'
+    type: boolean
+    default: false
 
 # Reminder
 # - ${{ github.repository }} -> 'user/repo'
@@ -53,7 +58,16 @@ runs:
         
         echo "${{ github.event.pull_request.head.repo.full_name }}"
 
-        ~/runner-scripts/run.sh \
+        # Check for dev mode
+        if [ "$dev" = true ]; then
+            echo "Running in development mode"
+            command_prefix="~/runner-scripts/run-dev.sh"
+        else
+            command_prefix="~/runner-scripts/run.sh"
+        fi
+
+        # Execute the command with the common arguments
+        $command_prefix \
         --repo ${{ github.repository }} \
         --branch_main ${{ github.head_ref }} \
         --branch_feature "pr/${{ github.event.number }}" \ 
