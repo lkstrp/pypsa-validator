@@ -49,9 +49,9 @@ runs:
       run: |
         echo "Running self-hosted validation..."
         # Fetch the hashes (without checking out the code)
-        _HASH_MAIN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        _HASH_MAIN=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
         "https://api.github.com/repos/${{ github.repository }}/commits/{{ github.base_ref }}" | jq -r '.sha')
-        _HASH_FEATURE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        _HASH_FEATURE=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
         "https://api.github.com/repos/${{ github.repository }}/commits/{{ github.head_ref }}" | jq -r '.sha')
         echo "Main branch (${{ github.base_ref }}) hash: $_HASH_MAIN"
         echo "Feature branch (${{ github.head_ref }}) hash: $_HASH_FEATURE"
@@ -59,7 +59,7 @@ runs:
         echo "${{ github.event.pull_request.head.repo.full_name }}"
 
         # Check for dev mode
-        if [ "$dev" = true ]; then
+        if [ "${{ inputs.dev }}" = true ]; then
             echo "Running in development mode"
             command_prefix="~/runner-scripts/run-dev.sh"
         else
@@ -78,6 +78,8 @@ runs:
         --pre_command "${{ inputs.pre_command }}"
         --main_command "ariadne_all"
       shell: bash
+      env: 
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # ----------------------------------------
     # 'create-comment' step
