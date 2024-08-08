@@ -218,7 +218,7 @@ class Comment:
         df = pd.DataFrame(
             rows, columns=pd.Index(["Base branch", "Feature branch"]), index=self.plots
         )
-        return df.to_html(escape=False) + "\n"
+        return df.to_html(escape=False, index=False) + "\n"
 
     @property
     def files_table(self) -> str:
@@ -363,11 +363,11 @@ class Comment:
             .strftime("%Y-%m-%d %H:%M:%S %Z")
         )
         return (
-            f"Comparing {self.branch_name_feature} {hash_feature}with "
+            f"Comparing `{self.branch_name_feature}` {hash_feature}with "
             f"{self.branch_name_base} {hash_base}.\n"
             f"Branch is {self.ahead_count} commits ahead and {self.behind_count} "
-            f"commits behind `{self.branch_name_base}`.\n"
-            f"Last updated on {time}."
+            f"commits behind.\n"
+            f"Last updated on `{time}`."
         )
 
     def __repr__(self) -> str:
