@@ -78,8 +78,6 @@ runs:
         --pre_command "${{ inputs.pre_command }}"
         --main_command "ariadne_all"
       shell: bash
-      env: 
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # ----------------------------------------
     # 'create-comment' step
