@@ -70,7 +70,7 @@ runs:
         fi
 
         # Execute the command with the common arguments
-        ~/runner-scripts/run-dev.sh \
+        $command_prefix \
         --repo ${{ github.repository }} \
         --branch_main ${{ github.head_ref }} \
         --branch_feature "pr/${{ github.event.number }}" \ 
