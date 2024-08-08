@@ -74,12 +74,12 @@ runs:
         eval $command_prefix \
         --repo ${{ github.repository }} \
         --branch_main ${{ github.head_ref }} \
-        --branch_feature "pr/${{ github.event.number }}" \ 
+        --branch_feature "pr/${{ github.event.number }}" \
         --hash_main $HASH_MAIN \
         --hash_feature $HASH_FEATURE \
         --env_file ${{ inputs.env_file }} \
         --config_file ${{ inputs.snakemake_config }} \
-        --pre_command "${{ inputs.pre_command }}"
+        --pre_command "${{ inputs.pre_command }}" \
         --main_command "ariadne_all"
       shell: bash
 
