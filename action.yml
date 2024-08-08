@@ -19,6 +19,9 @@ inputs:
   pre_command:
     description: 'Pre-command to run before validation'
     type: string
+  main_command:
+    description: 'Main command to run for validation'
+    type: string
   # Needed for 'create-comment' step
   plots:
     description: 'Plots to be shown in comment'
