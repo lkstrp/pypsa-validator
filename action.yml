@@ -39,14 +39,30 @@ runs:
     # ----------------------------------------
     - name: Run self-hosted validation
       if: ${{ inputs.step == 'run-self-hosted-validation' }}
+
+      
       run: |
-        ~/runner-scripts/run_validation.sh \
+        echo "Running self-hosted validation..."
+        # Fetch the hashes (without checking out the code)
+        _HASH_MAIN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        "https://api.github.com/repos/${{ github.repository }}/commits/{{ github.base_ref }}" | jq -r '.sha')
+        _HASH_FEATURE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        "https://api.github.com/repos/${{ github.repository }}/commits/{{ github.head_ref }}" | jq -r '.sha')
+        echo "Main branch (${{ github.base_ref }}) hash: $_HASH_MAIN"
+        echo "Feature branch (${{ github.head_ref }}) hash: $_HASH_FEATURE"
+        
+        echo "${{ github.event.pull_request.head.repo.full_name }}"
+
+        ~/runner-scripts/run.sh \
         --repo ${{ github.repository }} \
-        --branch ${{ github.head_ref }} \
-        --base_branch ${{ github.base_ref }} \
+        --branch_main ${{ github.head_ref }} \
+        --branch_feature "pr/${{ github.event.number }}" \ 
+        --hash_main $_HASH_MAIN \
+        --hash_feature $_HASH_FEATURE \
         --env_file ${{ inputs.env_file }} \
         --config_file ${{ inputs.snakemake_config }} \
         --pre_command "${{ inputs.pre_command }}"
+        --main_command "ariadne_all"
       shell: bash
 
     # ----------------------------------------
@@ -69,8 +85,8 @@ runs:
       id: env-variables-artifacts
       run: |
         # Get compared hashes
-        hash_base=$(yq e '.metadata.hash_base' $HOME/artifacts/validator-metadata/validator-metadata.yml)
-        hash_feature=$(yq e '.metadata.hash_feature' $HOME/artifacts/validator-metadata/validator-metadata.yml)
+        hash_base=$(yq e '.parameters.hash_base' $HOME/artifacts/validator-metadata/validator-metadata.yml)
+        hash_feature=$(yq e '.parameters.hash_feature' $HOME/artifacts/validator-metadata/validator-metadata.yml)
 
         # Assert variables found  
         if [[ -z $hash_base || -z $hash_feature ]]; then
