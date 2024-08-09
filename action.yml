@@ -101,6 +101,9 @@ runs:
     if: ${{ inputs.step == 'create-comment' }}
     run: |
       # Get compared hashes
+      ls ${HOME}/artifacts
+      ls ${HOME}/artifacts/logs
+      cat ${HOME}/artifacts/logs/validator-metadata.ym
       echo "HASH_MAIN=$(yq e '.parameters.hash_main' $HOME/artifacts/logs/validator-metadata.yml)" >> $GITHUB_ENV
       echo "HASH_FEATURE=$(yq e '.parameters.hash_feature' $HOME/artifacts/logs/validator-metadata.yml)" >> $GITHUB_ENV
       echo "Main commit hash: ${HASH_MAIN}"
