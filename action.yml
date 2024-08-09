@@ -101,27 +101,29 @@ runs:
     if: ${{ inputs.step == 'create-comment' }}
     run: |
       # Get compared hashes
-      echo "TEST_ENV='wurst'" >> $GITHUB_ENV
-      echo "HASH_MAIN=$(yq e '.parameters.hash_main' $HOME/artifacts/logs/validator-metadata.yml)" >> $GITHUB_ENV
-      echo "HASH_FEATURE=$(yq e '.parameters.hash_feature' $HOME/artifacts/logs/validator-metadata.yml)" >> $GITHUB_ENV
-      echo "Main commit hash: ${HASH_MAIN}"
-      echo "Feature commit hash: ${HASH_FEATURE}"
-      echo "TEST_ENV: ${TEST_ENV}"
+      hash_main=$(yq e '.parameters.hash_main' $HOME/artifacts/logs/validator-metadata.yml)
+      echo "HASH_MAIN=$hash_main" >> $GITHUB_ENV
+      hash_feature=$(yq e '.parameters.hash_feature' $HOME/artifacts/logs/validator-metadata.yml)
+      echo "HASH_FEATURE=$hash_feature" >> $GITHUB_ENV
+      echo "Main commit hash: ${hash_main}"
+      echo "Feature commit hash: ${hash_feature}"
 
       # Assert variables found  
-      if [[ -z $HASH_MAIN || -z $HASH_FEATURE ]]; then
+      if [[ -z $hash_main || -z $hash_feature ]]; then
         echo "Error: Commit hashes not found"
         exit 1
       fi
 
       # Get config prefix
-      echo "PREFIX_MAIN=$(yq e '.metadata.prefix_main' $HOME/artifacts/logs/validator-metadata.yml)" >> $GITHUB_ENV
-      echo "PREFIX_FEATURE=$(yq e '.metadata.prefix_feature' $HOME/artifacts/logs/validator-metadata.yml)" >> $GITHUB_ENV
-      echo "Main config prefix: ${PREFIX_MAIN}"
-      echo "Feature config prefix: ${PREFIX_FEATURE}"
+      prefix_main=$(yq e '.metadata.prefix_main' $HOME/artifacts/logs/validator-metadata.yml)
+      echo "PREFIX_MAIN=$prefix_main" >> $GITHUB_ENV
+      prefix_feature=$(yq e '.metadata.prefix_feature' $HOME/artifacts/logs/validator-metadata.yml)
+      echo "PREFIX_FEATURE=$prefix_feature" >> $GITHUB_ENV
+      echo "Main config prefix: ${prefix_main}"
+      echo "Feature config prefix: ${prefix_feature}"
 
       # Assert variables found
-      if [[ -z $PREFIX_MAIN || -z $PREFIX_FEATURE ]]; then
+      if [[ -z $prefix_main || -z $prefix_feature ]]; then
         echo "Error: Config prefixes not found"
         exit 1
       fi
@@ -147,10 +149,12 @@ runs:
       echo "Git diff config:\n${git_diff_config}"
 
       # Get the number of commits ahead of main
-      echo "BEHIND_COUNT=$(git rev-list --right-only --count $HASH_FEATURE...$HASH_MAIN)" >> $GITHUB_ENV
-      echo "AHEAD_COUNT=$(git rev-list --left-only --count $HASH_FEATURE...$HASH_MAIN)" >> $GITHUB_ENV
-      echo "Behind count: $BEHIND_COUNT"
-      echo "Ahead count: $AHEAD_COUNT"
+      behind_count=$(git rev-list --right-only --count $HASH_FEATURE...$HASH_MAIN)
+      echo "BEHIND_COUNT=$behind_count" >> $GITHUB_ENV
+      ahead_count=$(git rev-list --left-only --count $HASH_FEATURE...$HASH_MAIN)
+      echo "AHEAD_COUNT=$ahead_count" >> $GITHUB_ENV
+      echo "Behind count: $behind_count"
+      echo "Ahead count: $ahead_count"
 
     shell: bash
 
