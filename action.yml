@@ -40,10 +40,6 @@ inputs:
 
 runs:
   using: "composite"
-  env:
-    REPO: ${{ github.repository }}
-    BRANCH_NAME_MAIN: ${{ github.base_ref }}
-    BRANCH_NAME_FEATURE: ${{ github.head_ref }}
   steps:
 
     # ----------------------------------------
