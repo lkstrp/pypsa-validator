@@ -74,7 +74,7 @@ runs:
         # Execute the command with the common arguments
         $command_prefix \
         --repo ${{ github.repository }} \
-        --branch_main ${{ github.head_ref }} \
+        --branch_main ${{ github.base_ref }} \
         --branch_feature "pr/${{ github.event.number }}" \
         --hash_main $_HASH_MAIN \
         --hash_feature $_HASH_FEATURE \
