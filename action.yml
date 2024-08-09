@@ -129,7 +129,7 @@ runs:
           exit 1
         fi
 
-        $ Print and save variables
+        # Print and save variables
         echo "Main config prefix: ${prefix_main}"
         echo "Feature config prefix: ${prefix_feature}"
         echo "prefix_main=${prefix_main}" >> $GITHUB_OUTPUT
