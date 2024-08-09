@@ -104,8 +104,8 @@ runs:
       id: env-variables-artifacts
       run: |
         # Get compared hashes
-        hash_main=$(yq e '.parameters.hash_main' $HOME/artifacts/validator-metadata/validator-metadata.yml)
-        hash_feature=$(yq e '.parameters.hash_feature' $HOME/artifacts/validator-metadata/validator-metadata.yml)
+        hash_main=$(yq e '.parameters.hash_main' $HOME/artifacts/logs/validator-metadata.yml)
+        hash_feature=$(yq e '.parameters.hash_feature' $HOME/artifacts/logs/validator-metadata.yml)
 
         # Assert variables found  
         if [[ -z $hash_main || -z $hash_feature ]]; then
@@ -118,6 +118,23 @@ runs:
         echo "Feature commit hash: ${hash_feature}"
         echo "hash_main=${hash_main}" >> $GITHUB_OUTPUT
         echo "hash_feature=${hash_feature}" >> $GITHUB_OUTPUT
+
+        # Get config prefix
+        prefix_main=$(yq e '.metadata.prefix_main' $HOME/artifacts/logs/validator-metadata.yml)
+        prefix_feature=$(yq e '.metadata.prefix_feature' $HOME/artifacts/logs/validator-metadata.yml)
+        
+        # Assert variables found
+        if [[ -z $prefix_main || -z $prefix_feature ]]; then
+          echo "Error: Config prefixes not found"
+          exit 1
+        fi
+
+        $ Print and save variables
+        echo "Main config prefix: ${prefix_main}"
+        echo "Feature config prefix: ${prefix_feature}"
+        echo "prefix_main=${prefix_main}" >> $GITHUB_OUTPUT
+        echo "prefix_feature=${prefix_feature}" >> $GITHUB_OUTPUT
+
       shell: bash
 
     - name: Checkout main repo
@@ -130,12 +147,6 @@ runs:
       if: ${{ inputs.step == 'create-comment' }}
       id: env-variables-repo
       run: |
-        # snakemake config prefix
-        config_prefix=$(yq eval '.run.prefix' ${{ inputs.snakemake_config }})
-        echo "Config prefix: ${config_prefix}"
-        echo "config_prefix=${config_prefix}" >> $GITHUB_OUTPUT
-
-
         # Get git diff of used snakemake config
         git_diff_config=$(git diff ${{ steps.env-variables-artifacts.outputs.hash_main }} ${{ steps.env-variables-artifacts.outputs.hash_feature }} -- ${{ inputs.snakemake_config }})
         # echo "GIT_DIFF_CONFIG='${git_diff_config}'" >> $GITHUB_ENV
@@ -167,7 +178,7 @@ runs:
       run: |
         rm -rf _validation-images
         mkdir -p _validation-images/feature
-        mkdir -p _validation-images/base
+        mkdir -p _validation-images/main
                 
         # Copy plots  
         read -a plots_array <<< ${{ inputs.plots }}
@@ -175,8 +186,8 @@ runs:
         for plot in "${plots_array[@]}"
         do
           echo "Copying ${plot}"
-          cp -r "$HOME/artifacts/results (feature branch)/${{ steps.env-variables-repo.outputs.config_prefix }}/${plot}" "_validation-images/feature"
-          cp -r "$HOME/artifacts/results (base branch)/${{ steps.env-variables-repo.outputs.config_prefix }}/${plot}" "_validation-images/base"
+          cp -r "$HOME/artifacts/results (main branch)/${{ steps.env-variables-artifacts.outputs.prefix_main }}/${plot}" "_validation-images/main"
+          cp -r "$HOME/artifacts/results (feature branch)/${{ steps.env-variables-artifacts.outputs.prefix_feature }}/${plot}" "_validation-images/feature"
         done
 
         # Bot config
@@ -203,12 +214,12 @@ runs:
         python draft_comment.py \
         --repo ${{ github.repository }} \
         --artifact_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-        --branch_name_base ${{ github.base_ref }} \
+        --branch_name_main ${{ github.base_ref }} \
         --branch_name_feature ${{ github.head_ref }} \
         --hash_main "${{ steps.env-variables-artifacts.outputs.hash_main }}" \
         --hash_feature "${{ steps.env-variables-artifacts.outputs.hash_feature }}" \
         --config_prefix "${{ steps.env-variables-repo.outputs.config_prefix }}" \
-        --dir_base "$HOME/artifacts/results (base branch)" \
+        --dir_base "$HOME/artifacts/results (main branch)" \
         --dir_feature "$HOME/artifacts/results (feature branch)" \
         --plots_hash ${{ steps.upload-plots.outputs.COMMIT_ID }} \
         --plots "${{ inputs.plots }}" \
