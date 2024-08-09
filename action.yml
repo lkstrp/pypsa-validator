@@ -186,8 +186,8 @@ runs:
         for plot in "${plots_array[@]}"
         do
           echo "Copying ${plot}"
-          cp -r "$HOME/artifacts/results (main branch)/${{ steps.env-variables-artifacts.outputs.prefix_main }}/${plot}" "_validation-images/main"
-          cp -r "$HOME/artifacts/results (feature branch)/${{ steps.env-variables-artifacts.outputs.prefix_feature }}/${plot}" "_validation-images/feature"
+          cp -r "$HOME/artifacts/results (main branch)/${{ steps.env-variables-artifacts.outputs.prefix_main }}/${plot}" "_validation-images/main || true # ignore if run failed
+          cp -r "$HOME/artifacts/results (feature branch)/${{ steps.env-variables-artifacts.outputs.prefix_feature }}/${plot}" "_validation-images/feature" || true # ignore if run failed
         done
 
         # Bot config
