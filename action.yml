@@ -65,18 +65,18 @@ runs:
 
       # Fetch the hashes (without checking out the code)
       _hash_main=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-      "https://api.github.com/repos/$REPO/commits/$BRANCH_NAME_MAIN" | jq -r '.sha')
+      "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.base_ref }}" | jq -r '.sha')
       _hash_feature=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-      "https://api.github.com/repos/$REPO/commits/$BRANCH_NAME_FEATURE" | jq -r '.sha')
-      echo "Main branch ($BRANCH_NAME_MAIN) hash: $_hash_main"
-      echo "Feature branch ($BRANCH_NAME_FEATURE) hash: $_hash_feature"
+      "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.head_ref }}" | jq -r '.sha')
+      echo "Main branch (${{ github.base_ref }}) hash: $_hash_main"
+      echo "Feature branch (${{ github.head_ref }}) hash: $_hash_feature"
 
       echo "${{ github.event.pull_request.head.repo.full_name }}"
 
       # Execute the command with the common arguments
       $command_prefix \
-      --repo $REPO \
-      --branch_main $BRANCH_NAME_MAIN \
+      --repo ${{ github.repository }} \
+      --branch_main ${{ github.base_ref }} \
       --branch_feature "pr/${{ github.event.number }}" \
       --hash_main $_hash_main \
       --hash_feature $_hash_feature \
@@ -161,7 +161,7 @@ runs:
     uses: actions/checkout@v4
     with:
       repository: lkstrp/pypsa-validator
-      ref: $REPO
+      ref: ${{ github.repository }}
       ssh-key: ${{ inputs.repo_private_key }}
 
   - name: Upload relevant plots
@@ -190,7 +190,7 @@ runs:
       echo "Adding plots to repo branch"
       git add _validation-images
       git commit -m "[github-actions.ci] upload validation images to show in comment" || true # ignore if no changes
-      git push origin $REPO
+      git push origin ${{ github.repository }}
       echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
     shell: bash
 
@@ -205,7 +205,10 @@ runs:
       pip install -r requirements.txt
 
       # Set env variables needed for script
-      echo "ARTIFACT_URL="https://github.com/$REPO/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
+      echo "REPO=${{ github.repository }}" >> $GITHUB_ENV
+      echo "BRANCH_NAME_MAIN=${{ github.base_ref }}" >> $GITHUB_ENV
+      echo "BRANCH_NAME_FEATURE=${{ github.head_ref }}" >> $GITHUB_ENV
+      echo "ARTIFACT_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
       echo "DIR_MAIN=$HOME/artifacts/results (main branch)" >> $GITHUB_ENV
       echo "DIR_FEATURE=$HOME/artifacts/results (feature branch)" >> $GITHUB_ENV
       echo "DIR_LOGS=$HOME/artifacts/logs" >> $GITHUB_ENV
