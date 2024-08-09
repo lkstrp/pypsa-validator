@@ -104,19 +104,19 @@ runs:
       id: env-variables-artifacts
       run: |
         # Get compared hashes
-        hash_base=$(yq e '.parameters.hash_base' $HOME/artifacts/validator-metadata/validator-metadata.yml)
+        hash_main=$(yq e '.parameters.hash_main' $HOME/artifacts/validator-metadata/validator-metadata.yml)
         hash_feature=$(yq e '.parameters.hash_feature' $HOME/artifacts/validator-metadata/validator-metadata.yml)
 
         # Assert variables found  
-        if [[ -z $hash_base || -z $hash_feature ]]; then
+        if [[ -z $hash_main || -z $hash_feature ]]; then
           echo "Error: Commit hashes not found"
           exit 1
         fi
 
         # Print and save variables
-        echo "Main commit hash: ${hash_base}"
+        echo "Main commit hash: ${hash_main}"
         echo "Feature commit hash: ${hash_feature}"
-        echo "hash_base=${hash_base}" >> $GITHUB_OUTPUT
+        echo "hash_main=${hash_main}" >> $GITHUB_OUTPUT
         echo "hash_feature=${hash_feature}" >> $GITHUB_OUTPUT
       shell: bash
 
@@ -137,7 +137,7 @@ runs:
 
 
         # Get git diff of used snakemake config
-        git_diff_config=$(git diff ${{ steps.env-variables-artifacts.outputs.hash_base }} ${{ steps.env-variables-artifacts.outputs.hash_feature }} -- ${{ inputs.snakemake_config }})
+        git_diff_config=$(git diff ${{ steps.env-variables-artifacts.outputs.hash_main }} ${{ steps.env-variables-artifacts.outputs.hash_feature }} -- ${{ inputs.snakemake_config }})
         # echo "GIT_DIFF_CONFIG='${git_diff_config}'" >> $GITHUB_ENV
         echo "GIT_DIFF_CONFIG<<EOF" >> $GITHUB_ENV
         echo "${git_diff_config}" >> $GITHUB_ENV
@@ -145,8 +145,8 @@ runs:
         echo "git_diff_config:\n${git_diff_config}"
 
         # Get the number of commits ahead of main
-        behind_count=$(git rev-list --right-only --count ${{ steps.env-variables-artifacts.outputs.hash_feature }}...${{ steps.env-variables-artifacts.outputs.hash_base }})
-        ahead_count=$(git rev-list --left-only --count ${{ steps.env-variables-artifacts.outputs.hash_feature }}...${{ steps.env-variables-artifacts.outputs.hash_base }})
+        behind_count=$(git rev-list --right-only --count ${{ steps.env-variables-artifacts.outputs.hash_feature }}...${{ steps.env-variables-artifacts.outputs.hash_main }})
+        ahead_count=$(git rev-list --left-only --count ${{ steps.env-variables-artifacts.outputs.hash_feature }}...${{ steps.env-variables-artifacts.outputs.hash_main }})
         echo "BEHIND_COUNT=${behind_count}" >> $GITHUB_ENV
         echo "behind_count: ${behind_count}"
         echo "AHEAD_COUNT=${ahead_count}" >> $GITHUB_ENV
@@ -205,7 +205,7 @@ runs:
         --artifact_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
         --branch_name_base ${{ github.base_ref }} \
         --branch_name_feature ${{ github.head_ref }} \
-        --hash_base "${{ steps.env-variables-artifacts.outputs.hash_base }}" \
+        --hash_main "${{ steps.env-variables-artifacts.outputs.hash_main }}" \
         --hash_feature "${{ steps.env-variables-artifacts.outputs.hash_feature }}" \
         --config_prefix "${{ steps.env-variables-repo.outputs.config_prefix }}" \
         --dir_base "$HOME/artifacts/results (base branch)" \

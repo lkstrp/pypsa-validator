@@ -138,7 +138,7 @@ class Comment:
         ahead_count: str,
         behind_count: str,
         git_diff_config: str,
-        hash_base: str,
+        hash_main: str,
         hash_feature: str,
         dir_base: str,
         dir_feature: str,
@@ -154,7 +154,7 @@ class Comment:
         self.git_diff_config = git_diff_config
         self.ahead_count = ahead_count
         self.behind_count = behind_count
-        self.hash_base = hash_base
+        self.hash_main = hash_main
         self.hash_feature = hash_feature
         self.dir_base = dir_base
         self.dir_feature = dir_feature
@@ -351,10 +351,10 @@ class Comment:
                 f"([{self.hash_feature[:7]}](https://github.com/"
                 f"{self.repo}/commits/{self.hash_feature})) "
             )
-        if self.hash_base:
-            hash_base = (
-                f"([{self.hash_base[:7]}](https://github.com/"
-                f"{self.repo}/commits/{self.hash_base}))"
+        if self.hash_main:
+            hash_main = (
+                f"([{self.hash_main[:7]}](https://github.com/"
+                f"{self.repo}/commits/{self.hash_main}))"
             )
         time = (
             pd.Timestamp.now()
@@ -364,7 +364,7 @@ class Comment:
         )
         return (
             f"Comparing `{self.branch_name_feature}` {hash_feature}with "
-            f"{self.branch_name_base} {hash_base}.\n"
+            f"{self.branch_name_base} {hash_main}.\n"
             f"Branch is {self.ahead_count} commits ahead and {self.behind_count} "
             f"commits behind.\n"
             f"Last updated on `{time}`."
@@ -397,7 +397,7 @@ if __name__ == "__main__":
     parser.add_argument("--artifact_url", type=str)
     parser.add_argument("--branch_name_base", type=str)
     parser.add_argument("--branch_name_feature", type=str)
-    parser.add_argument("--hash_base", type=str, default="")
+    parser.add_argument("--hash_main", type=str, default="")
     parser.add_argument("--hash_feature", type=str, default="")
     parser.add_argument("--config_prefix", type=str)
     parser.add_argument("--dir_base", type=str)
@@ -412,7 +412,7 @@ if __name__ == "__main__":
         artifact_url=args.artifact_url,
         branch_name_base=args.branch_name_base,
         branch_name_feature=args.branch_name_feature,
-        hash_base=args.hash_base,
+        hash_main=args.hash_main,
         hash_feature=args.hash_feature,
         config_prefix=args.config_prefix,
         git_diff_config=os.getenv("GIT_DIFF_CONFIG", ""),
