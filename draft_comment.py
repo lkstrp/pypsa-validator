@@ -4,7 +4,6 @@ Draft comment for pypsa-validator GitHub PRs.
 Script can be called via command line or imported as a module.
 """
 
-import argparse
 import os
 
 # from pathlib import Path
@@ -111,11 +110,16 @@ def create_numeric_mask(arr: ArrayLike) -> np.ndarray:
     return numeric_mask
 
 
-data = np.array([1, 2, "a", 3, np.nan, np.inf, -np.inf, 4.5, "3.14"], dtype=object)
-
-
-class Comment:
-    """Class to generate pypsa validator comment for GitHub PRs."""
+class RunSuccessfull:
+    def __init__(self, kwargs):
+        self.dir_main = kwargs.get("dir_main", "")
+        self.dir_feature = kwargs.get("dir_feature", "")
+        self.plots_hash = kwargs.get("plots_hash", "")
+        self.plots = [
+            plot.split("/")[-1]
+            for plot in kwargs.get("plots", [])
+            if plot.split(".")[-1] in ["png", "jpg", "jpeg", "svg"]
+        ]
 
     # Status strings for file comparison table
     STATUS_FILE_MISSING = " :warning: Missing"
@@ -128,77 +132,6 @@ class Comment:
     STATUS_ALMOST_EQUAL = ":white_check_mark: Almost equal"
     STATUS_NEW = ":warning: New"
 
-    def __init__(
-        self,
-        repo: str,
-        artifact_url: str,
-        branch_name_base: str,
-        branch_name_feature: str,
-        config_prefix: str,
-        ahead_count: str,
-        behind_count: str,
-        git_diff_config: str,
-        hash_main: str,
-        hash_feature: str,
-        dir_base: str,
-        dir_feature: str,
-        plots_hash: str,
-        plots: list,
-    ):
-        """Initialize the Comment object."""
-        self.repo = repo
-        self.artifact_url = artifact_url
-        self.branch_name_feature = branch_name_feature
-        self.branch_name_base = branch_name_base
-        self.config_prefix = config_prefix
-        self.git_diff_config = git_diff_config
-        self.ahead_count = ahead_count
-        self.behind_count = behind_count
-        self.hash_main = hash_main
-        self.hash_feature = hash_feature
-        self.dir_base = dir_base
-        self.dir_feature = dir_feature
-        self.plots_hash = plots_hash
-        self.plots = [
-            plot.split("/")[-1]
-            for plot in plots
-            if plot.split(".")[-1] in ["png", "jpg", "jpeg", "svg"]
-        ]
-
-    @property
-    def header(self) -> str:
-        """
-        Header text.
-
-        Contains the title, identifier, and short description.
-        """
-        return (
-            f""
-            f"<!-- _val-bot-id-keyword_ -->\n"
-            f"## Validator Report\n"
-            f"I am the Validator. Download all artifacts [here]({self.artifact_url}).\n"
-            f"I'll be back and edit this comment for each new commit.\n\n"
-            f"**Config**\nprefix: `{self.config_prefix}`\n\n"
-        )
-
-    @property
-    def config_diff(self) -> str:
-        """
-        Config diff text.
-
-        Only use when there are changes in the config.
-        """
-        return (
-            f"<details>\n"
-            f"    <summary>:warning: Config changes detected!</summary>\n"
-            f"\n"
-            f"Results may differ due to these changes:\n"
-            f"```diff\n"
-            f"{self.git_diff_config}\n"
-            f"```\n"
-            f"</details>\n\n"
-        )
-
     @property
     def plots_table(self) -> str:
         """Plots comparison table."""
@@ -206,7 +139,7 @@ class Comment:
 
         rows: list = []
         for plot in self.plots:
-            url_a = base_url + "base/" + plot
+            url_a = base_url + "main/" + plot
             url_b = base_url + "feature/" + plot
             rows.append(
                 [
@@ -216,7 +149,7 @@ class Comment:
             )
 
         df = pd.DataFrame(
-            rows, columns=pd.Index(["Base branch", "Feature branch"]), index=self.plots
+            rows, columns=pd.Index(["Main branch", "Feature branch"]), index=self.plots
         )
         return df.to_html(escape=False, index=False) + "\n"
 
@@ -225,42 +158,40 @@ class Comment:
         """Files comparison table."""
         rows = {}
 
-        # Loop through all files in base dir
-        for root, _, files in os.walk(self.dir_base):
+        # Loop through all files in main dir
+        for root, _, files in os.walk(self.dir_main):
             for file in files:
                 if file.endswith(".csv"):
-                    path_in_a = os.path.join(root, file)
-                    relative_path = os.path.relpath(path_in_a, self.dir_base)
-                    path_str = str(relative_path).replace(
-                        f"{self.config_prefix}/", "../"
-                    )
-                    path_in_b = os.path.join(self.dir_feature, relative_path)
+                    path_in_main = os.path.join(root, file)
+                    relative_path = os.path.relpath(path_in_main, self.dir_main)
+                    index_str = "../" + "/".join(str(relative_path).split("/")[1:])
+                    path_in_feature = os.path.join(self.dir_feature, relative_path)
 
-                    if not os.path.exists(path_in_b):
-                        rows[file] = [path_str, "", self.STATUS_FILE_MISSING, "", ""]
+                    if not os.path.exists(path_in_feature):
+                        rows[file] = [index_str, "", self.STATUS_FILE_MISSING, "", ""]
                         continue
 
-                    df1 = pd.read_csv(path_in_a)
-                    df2 = pd.read_csv(path_in_b)
+                    df1 = pd.read_csv(path_in_main)
+                    df2 = pd.read_csv(path_in_feature)
 
                     if df1.equals(df2):
-                        rows[file] = [path_str, "", self.STATUS_EQUAL, "", ""]
+                        rows[file] = [index_str, "", self.STATUS_EQUAL, "", ""]
 
                     # Numeric type mismatch
                     elif df1.apply(pd.to_numeric, errors="coerce").equals(
                         df2.apply(pd.to_numeric, errors="coerce")
                     ):
-                        rows[file] = [path_str, "", self.STATUS_TYPE_MISMATCH, "", ""]
+                        rows[file] = [index_str, "", self.STATUS_TYPE_MISMATCH, "", ""]
 
                     # Nan mismatch
                     elif not df1.isna().equals(df2.isna()):
-                        rows[file] = [path_str, "", self.STATUS_NAN_MISMATCH, "", ""]
+                        rows[file] = [index_str, "", self.STATUS_NAN_MISMATCH, "", ""]
 
                     # Inf mismatch
                     elif not df1.isin([np.inf, -np.inf]).equals(
                         df2.isin([np.inf, -np.inf])
                     ):
-                        rows[file] = [path_str, "", self.STATUS_INF_MISMATCH, "", ""]
+                        rows[file] = [index_str, "", self.STATUS_INF_MISMATCH, "", ""]
                     # Changed
                     else:
                         # Get numeric mask
@@ -295,7 +226,7 @@ class Comment:
                             status = self.STATUS_ALMOST_EQUAL
 
                         rows[file] = [
-                            path_str,
+                            index_str,
                             f"{numeric_mask.mean():.1%}",
                             status,
                             f"{nmae:.2f}",
@@ -306,15 +237,12 @@ class Comment:
         for root, _, files in os.walk(self.dir_feature):
             for file in files:
                 if file.endswith(".csv"):
-                    path_in_b = os.path.join(root, file)
-                    relative_path = os.path.relpath(path_in_b, self.dir_feature)
-                    path_str = str(relative_path).replace(
-                        f"{self.config_prefix}/", "../"
-                    )
-                    path_in_a = os.path.join(self.dir_base, relative_path)
+                    path_in_feature = os.path.join(root, file)
+                    relative_path = os.path.relpath(path_in_feature, self.dir_feature)
+                    index_str = "../" + "/".join(str(relative_path).split("/")[1:])
 
-                    if not os.path.exists(path_in_a):
-                        rows[file] = [path_str, "", self.STATUS_NEW, "", ""]
+                    if not os.path.exists(path_in_feature):
+                        rows[file] = [index_str, "", self.STATUS_NEW, "", ""]
 
         # Combine and sort the results
         df = pd.DataFrame(rows, index=["Path", "Numeric", "Status", "NMAE", "MAPE"]).T
@@ -344,6 +272,130 @@ class Comment:
         return final_text
 
     @property
+    def body_sucessfull(self) -> str:
+        return (
+            f"<details>\n"
+            f"    <summary>Result plots comparison</summary>\n"
+            f"{self.plots_table}"
+            f"</details>\n"
+            f"\n"
+            f"\n"
+            f"<details>\n"
+            f"    <summary>Result files comparison</summary>\n"
+            f"{self.files_table}"
+            f"</details>\n"
+            f"\n"
+            f"\n"
+        )
+
+
+class RunFailed:
+    def __init__(self, kwargs):
+        self.errors_main = kwargs.get("errors_main", [])
+        self.errors_feature = kwargs.get("errors_feature", [])
+
+    def body_failed(self) -> str:
+        """Body text for failed run."""
+        return (
+            f":warning: Run failed!\n"
+            f"\n"
+            f"#### Main branch\n"
+            f"```diff\n"
+            f"{self.errors_main}\n"
+            f"```\n"
+            f"\n"
+            f"#### Feature branch\n"
+            f"```diff\n"
+            f"{self.errors_feature}\n"
+            f"```\n"
+            f"\n"
+        )
+
+
+def get_env_var(var_name, default=None):
+    value = os.getenv(var_name, default)
+    if value is None or value == "":
+        raise EnvironmentError(f"The environment variable '{var_name}' is not set.")
+    return value
+
+
+class Comment(RunSuccessfull, RunFailed):
+    """Class to generate pypsa validator comment for GitHub PRs."""
+
+    def __init__(
+        self,
+        # Header and subtext
+        repo: str = get_env_var("REPO"),
+        artifact_url: str = get_env_var("ARTIFACT_URL"),
+        branch_name_main: str = get_env_var("BRANCH_NAME_MAIN"),
+        branch_name_feature: str = get_env_var("BRANCH_NAME_FEATURE"),
+        hash_main: str = get_env_var("HASH_MAIN"),
+        hash_feature: str = get_env_var("HASH_FEATURE"),
+        ahead_count: str = get_env_var("AHEAD_COUNT"),
+        behind_count: str = get_env_var("BEHIND_COUNT"),
+        git_diff_config: str = get_env_var("GIT_DIFF_CONFIG"),
+        # For bodys
+        dir_main: str = get_env_var("DIR_MAIN"),
+        dir_feature: str = get_env_var("DIR_FEATURE"),
+        dir_logs: str = get_env_var("DIR_LOGS"),
+        # For RunSuccessfull body
+        plots_hash: str = "",
+        plots: list = [],
+    ):
+        """Initialize the Comment object."""
+        self.repo = repo
+        self.artifact_url = artifact_url
+        self.branch_name_main = branch_name_main
+        self.branch_name_feature = branch_name_feature
+        self.hash_main = hash_main
+        self.hash_feature = hash_feature
+        self.ahead_count = ahead_count
+        self.behind_count = behind_count
+        self.git_diff_config = git_diff_config
+        if self.sucessfull_run:
+            RunSuccessfull.__init__(self, locals())
+        else:
+            RunFailed.__init__(self, locals())
+
+    @property
+    def sucessfull_run(self) -> bool:
+        return True
+
+    @property
+    def header(self) -> str:
+        """
+        Header text.
+
+        Contains the title, identifier, and short description.
+        """
+        return (
+            f""
+            f"<!-- _val-bot-id-keyword_ -->\n"
+            f"## Validator Report\n"
+            f"I am the Validator. Download all artifacts [here]({self.artifact_url}).\n"
+            f"I'll be back and edit this comment for each new commit.\n\n"
+            # f"**Config**\nprefix: `{self.config_prefix}`\n\n"
+        )
+
+    @property
+    def config_diff(self) -> str:
+        """
+        Config diff text.
+
+        Only use when there are changes in the config.
+        """
+        return (
+            f"<details>\n"
+            f"    <summary>:warning: Config changes detected!</summary>\n"
+            f"\n"
+            f"Results may differ due to these changes:\n"
+            f"```diff\n"
+            f"{self.git_diff_config}\n"
+            f"```\n"
+            f"</details>\n\n"
+        )
+
+    @property
     def subtext(self) -> str:
         """Subtext for the comment."""
         if self.hash_feature:
@@ -364,7 +416,7 @@ class Comment:
         )
         return (
             f"Comparing `{self.branch_name_feature}` {hash_feature}with "
-            f"{self.branch_name_base} {hash_main}.\n"
+            f"{self.branch_name_main} {hash_main}.\n"
             f"Branch is {self.ahead_count} commits ahead and {self.behind_count} "
             f"commits behind.\n"
             f"Last updated on `{time}`."
@@ -374,54 +426,14 @@ class Comment:
         """Return full formatted comment."""
         return (
             f"{self.header}"
+            f"{self.body_failed if not self.sucessfull_run else ''}"
             f"{self.config_diff if self.git_diff_config else ''}"
-            f"<details>\n"
-            f"    <summary>Result plots comparison</summary>\n"
-            f"{self.plots_table}"
-            f"</details>\n"
-            f"\n"
-            f"\n"
-            f"<details>\n"
-            f"    <summary>Result files comparison</summary>\n"
-            f"{self.files_table}"
-            f"</details>\n"
-            f"\n"
-            f"\n"
+            f"{self.body_sucessfull if self.sucessfull_run else ''}"
             f"{self.subtext}"
         )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--repo", type=str)
-    parser.add_argument("--artifact_url", type=str)
-    parser.add_argument("--branch_name_base", type=str)
-    parser.add_argument("--branch_name_feature", type=str)
-    parser.add_argument("--hash_main", type=str, default="")
-    parser.add_argument("--hash_feature", type=str, default="")
-    parser.add_argument("--config_prefix", type=str)
-    parser.add_argument("--dir_base", type=str)
-    parser.add_argument("--dir_feature", type=str)
-    parser.add_argument("--plots_hash", type=str)
-    parser.add_argument("--plots", nargs="*", type=str)
-
-    args = parser.parse_args()
-
-    comment = Comment(
-        repo=args.repo,
-        artifact_url=args.artifact_url,
-        branch_name_base=args.branch_name_base,
-        branch_name_feature=args.branch_name_feature,
-        hash_main=args.hash_main,
-        hash_feature=args.hash_feature,
-        config_prefix=args.config_prefix,
-        git_diff_config=os.getenv("GIT_DIFF_CONFIG", ""),
-        ahead_count=os.getenv("AHEAD_COUNT", ""),
-        behind_count=os.getenv("BEHIND_COUNT", ""),
-        dir_base=args.dir_base,
-        dir_feature=args.dir_feature,
-        plots_hash=args.plots_hash,
-        plots=args.plots,
-    )
+    comment = Comment()
 
     print(comment)
