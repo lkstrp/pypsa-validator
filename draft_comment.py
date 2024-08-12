@@ -231,7 +231,7 @@ class RunSuccessfull(CommentData):
         for root, _, files in os.walk(self.dir_main):
             for file in files:
                 if file.endswith(".csv"):
-                    path_in_main = root / file
+                    path_in_main = Path(root) / file
                     relative_path = os.path.relpath(path_in_main, self.dir_main)
                     index_str = "../" + "/".join(str(relative_path).split("/")[1:])
                     path_in_feature = self.dir_feature / relative_path
@@ -306,7 +306,7 @@ class RunSuccessfull(CommentData):
         for root, _, files in os.walk(self.dir_feature):
             for file in files:
                 if file.endswith(".csv"):
-                    path_in_feature = root / file
+                    path_in_feature = Path(root) / file
                     relative_path = os.path.relpath(path_in_feature, self.dir_feature)
                     index_str = "../" + "/".join(str(relative_path).split("/")[1:])
 
