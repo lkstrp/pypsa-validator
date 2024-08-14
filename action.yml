@@ -25,10 +25,9 @@ inputs:
   # Needed for 'create-comment' step
   plots:
     description: 'Plots to be shown in comment'
-  repo_private_key:
-    description: 'Private key to access the plots repo'
+  validator_key:
+    description: 'Private ssh key to access the validator repo'
     type: string
-
   dev:
     description: 'Run in development mode'
     type: boolean
@@ -45,6 +44,24 @@ runs:
     # ----------------------------------------
     # 'run-self-hosted-validation' step
     # ----------------------------------------
+  - name: General setup and checks
+    run: |
+      # Check if from fork
+      if [ "${{ github.repository }}" != "${{ github.event.pull_request.head.repo.full_name }}" ]; then
+          echo "Running from fork."
+          fork=true
+          exit 1 # Not supported yet
+      else
+          echo "Running from main repository."
+          fork=false
+      fi
+
+      # Bot config
+      git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      git config --global user.name "github-actions[bot]"
+
+    shell: bash
+
   - name: Run self-hosted validation
     if: ${{ inputs.step == 'run-self-hosted-validation' }}
     run: |
@@ -62,7 +79,7 @@ runs:
       # Fetch hash of main branch
       _hash_main=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
       "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.base_ref }}" | jq -r '.sha')
-      
+
       # Fetch hash of feature branch (via PR number, also works for branches from forks)
       pr_details=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
           "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}")
@@ -89,11 +106,14 @@ runs:
       --config_file ${{ inputs.snakemake_config }} \
       --pre_command "${{ inputs.pre_command }}" \
       --main_command "ariadne_all"
+
     shell: bash
 
     # ----------------------------------------
     # 'create-comment' step
     # ----------------------------------------
+
+
   - name: Download artifacts
     if: ${{ inputs.step == 'create-comment' }}
     uses: actions/download-artifact@v4
@@ -104,6 +124,7 @@ runs:
       # Move artifacts to home directory
       mkdir $HOME/artifacts
       mv ./* $HOME/artifacts
+
     shell: bash
 
   - name: Get variables from artifacts
@@ -139,16 +160,19 @@ runs:
 
     shell: bash
 
-  - name: Checkout main repo
+  - name: Checkout model repo
     if: ${{ inputs.step == 'create-comment' }}
     uses: actions/checkout@v4
     with:
       fetch-depth: 0
+      path: model-repo
 
   - name: Get variables from repo
     if: ${{ inputs.step == 'create-comment' }}
     id: env-variables-repo
     run: |
+      cd $GITHUB_WORKSPACE/model-repo
+
       # Get git diff of used snakemake config
       git_diff_config=$(git diff $HASH_MAIN $HASH_FEATURE -- ${{ inputs.snakemake_config }})
 
@@ -168,18 +192,21 @@ runs:
 
     shell: bash
 
-  - name: Checkout plot repo
+  - name: Checkout validator repo
     if: ${{ inputs.step == 'create-comment' }}
     uses: actions/checkout@v4
     with:
       repository: lkstrp/pypsa-validator
       ref: ${{ github.repository }}
-      ssh-key: ${{ inputs.repo_private_key }}
+      ssh-key: ${{ inputs.validator_key }}
+      path: validator-repo
 
   - name: Upload relevant plots
     id: upload-plots
     if: ${{ inputs.step == 'create-comment' }}
     run: |
+      cd $GITHUB_WORKSPACE/validator-repo
+
       rm -rf _validation-images
       mkdir -p _validation-images/feature
       mkdir -p _validation-images/main
@@ -194,16 +221,13 @@ runs:
         cp -r "$HOME/artifacts/results (feature branch)/${PREFIX_FEATURE}/${plot}" "_validation-images/feature" || true # ignore if run failed
       done
 
-      # Bot config
-      git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      git config --global user.name "github-actions[bot]"
-
       # Add plots to repo branch
       echo "Adding plots to repo branch"
       git add _validation-images
       git commit -m "[github-actions.ci] upload validation images to show in comment" || true # ignore if no changes
       git push origin ${{ github.repository }}
       echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
     shell: bash
 
   - name: Set env for comment script
@@ -212,11 +236,14 @@ runs:
       # This needs to be done in a separate step to ensure the output is available
       echo "PLOTS_HASH=${{ steps.upload-plots.outputs.COMMIT_ID }}" >> $GITHUB_ENV
       echo "PLOTS=${{ inputs.plots }}" >> $GITHUB_ENV
+
     shell: bash
 
   - name: Draft comment
     if: ${{ inputs.step == 'create-comment' }}
     run: |
+      cd $GITHUB_WORKSPACE/validator-repo
+
       # Get potential changes from main branch
       git fetch origin
       if [ "${{ inputs.dev }}" = true ]; then
@@ -239,7 +266,7 @@ runs:
 
       # Draft comment
       # Note: The script uses many env variables. See the script for more details.
-      python draft_comment.py > comment.txt
+      python draft_comment.py > $GITHUB_WORKSPACE/comment.txt
 
     shell: bash
 
@@ -293,7 +320,7 @@ runs:
     with:
       script: |
         const fs = require('fs');
-        let comment = fs.readFileSync('comment.txt', 'utf8');
+        const comment = fs.readFileSync(`${process.env.GITHUB_WORKSPACE}/comment.txt`, 'utf8');
 
         github.rest.issues.updateComment({
           owner: context.repo.owner,
