@@ -375,7 +375,7 @@ class RunFailed(CommentData):
         main_status = (
             "passed! :white_check_mark:"
             if not main_errors
-            else f"`failed in: `{'`, `'.join(main_errors)}`"
+            else f"failed in: `{'`, `'.join(main_errors)}`"
         )
         feature_status = (
             "passed! :white_check_mark:"
