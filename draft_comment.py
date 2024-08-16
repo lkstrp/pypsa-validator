@@ -276,7 +276,7 @@ class RunSuccessfull(CommentData):
 
         df = self.variables_deviation_ds.apply(lambda x: f"{x:.2f}%")
         df = pd.DataFrame(df, columns=["MAPE"])
-        df.index.name = ""
+        df.index.name = None
 
         return (
             f"{df.to_html(escape=False)}\n"
