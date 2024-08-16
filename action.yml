@@ -231,7 +231,7 @@ runs:
       # Get dynamic plot list (from comment script)
       read -a plots_array_dynamic <<< "$(python draft_comment.py)"
 
-      plots_array = "${plots_array_input[@]} ${plots_array_dynamic[@]}"
+      plots_array="${plots_array_input[@]} ${plots_array_dynamic[@]}"
 
       # Empty directory
       rm -rf _validation-images
