@@ -210,9 +210,9 @@ runs:
       git fetch origin
       if [ "${{ inputs.dev }}" = true ]; then
           echo "Merging from dev instead of main."
-          git merge origin/dev --allow-unrelated-histories
+          git merge origin/dev --allow-unrelated-histories -X theirs
       else
-          git merge origin/main --allow-unrelated-histories
+          git merge origin/main --allow-unrelated-histories -X theirs
       fi
 
       # Install requirements
