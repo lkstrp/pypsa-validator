@@ -250,8 +250,8 @@ runs:
         mkdir -p "_validation-images/main/${subpath}"
         mkdir -p "_validation-images/feature/${subpath}"
 
-        cp "$HOME/artifacts/results (main branch)/${subpath}/${plot}" "_validation-images/main/${subpath}/" || true # ignore if run failed
-        cp "$HOME/artifacts/results (feature branch)/${subpath}/${plot}" "_validation-images/feature/${subpath}/" || true # ignore if run failed
+        cp "$HOME/artifacts/results (main branch)/${PREFIX_MAIN}/${subpath}/${plot}" "_validation-images/main/${subpath}/" || true # ignore if run failed
+        cp "$HOME/artifacts/results (feature branch)/${PREFIX_FEATURE}/${subpath}/${plot}" "_validation-images/feature/${subpath}/" || true # ignore if run failed
       done
 
       # Add plots to repo branch
