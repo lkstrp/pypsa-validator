@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
+import argparse
 
 
 def min_max_normalized_mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
@@ -124,8 +125,8 @@ def get_env_var(var_name: str, default: Any = None) -> Any:
     if value == "" and default is None:
         msg = f"The environment variable '{var_name}' is not set."
         raise OSError(msg)
-    if value.lower() in ["true", "false"]:
-        return value.lower() == "true"
+    if str(value).lower() in ["true", "false"]:
+        return str(value).lower() == "true"
     return value
 
 
@@ -147,8 +148,8 @@ class CommentData:
         get_env_var("DIR_ARTIFACTS", Path(get_env_var("HOME")) / "artifacts")
     )
     # For RunSuccessfull body
-    plots_hash: str = get_env_var("PLOTS_HASH")
-    plots_string: str = get_env_var("PLOTS")
+    plots_hash: str = get_env_var("PLOTS_HASH", "")
+    plots_string: str = get_env_var("PLOTS", "")
 
     _sucessfull_run = None
 
@@ -216,12 +217,14 @@ class RunSuccessfull(CommentData):
         self.dir_feature = self.dir_feature[0]
 
         self.plots_list = [
-            plot.split("/")[-1]
+            plot
             for plot in self.plots_string.split(" ")
             if plot.split(".")[-1] in ["png", "jpg", "jpeg", "svg"]
         ]
 
         self._variables_deviation_ds = None
+
+        self.plots_base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
 
     # Status strings for file comparison table
     STATUS_FILE_MISSING = " :warning: Missing"
@@ -235,6 +238,7 @@ class RunSuccessfull(CommentData):
     STATUS_NEW = ":warning: New"
 
     VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
+    VARIABLES_THRESHOLD = 5
 
     @property
     def variables_deviation_ds(self):
@@ -258,9 +262,21 @@ class RunSuccessfull(CommentData):
             np.round(deviation, 2).mean(axis=1), index=vars1.index
         ).sort_values(ascending=False)
 
-        self._variables_deviation_ds = deviation
+        # Filter for threshold
+        deviation = deviation.loc[deviation > self.VARIABLES_THRESHOLD]
 
+        self._variables_deviation_ds = deviation
         return self._variables_deviation_ds
+
+    @property
+    def variables_plot_strings(self):
+        plots = (
+            self.variables_deviation_ds.index.to_series()
+            .apply(lambda x: re.sub(r"[ |/]", "-", x))
+            .apply(lambda x: "ariadne_comparison/" + x + ".png")
+            .to_list()
+        )
+        return plots
 
     @property
     def variables_comparison(self) -> str:
@@ -270,11 +286,9 @@ class RunSuccessfull(CommentData):
         ):
             return ""
 
-        df = self.variables_deviation_ds.loc[self.variables_deviation_ds > 5].apply(
-            lambda x: f"{x:.2f}%"
-        )
+        df = self.variables_deviation_ds.apply(lambda x: f"{x:.2f}%")
         df = pd.DataFrame(df, columns=["MAPE"])
-        df.index.name = ""
+        df.index.name = None
 
         return (
             f"{df.to_html(escape=False)}\n"
@@ -292,18 +306,32 @@ class RunSuccessfull(CommentData):
             or not (self.dir_feature / self.VARIABLES_FILE).exists()
         ):
             return ""
-        # Not implemented yet
-        return ""
+
+        rows: list = []
+        for plot in self.variables_plot_strings:
+            url_a = self.plots_base_url + "main/" + plot
+            url_b = self.plots_base_url + "feature/" + plot
+            rows.append(
+                [
+                    f'<img src="{url_a}" alt="Error in loading image.">',
+                    f'<img src="{url_b}" alt="Error in loading image.">',
+                ]
+            )
+
+        df = pd.DataFrame(
+            rows,
+            columns=pd.Index(["Main branch", "Feature branch"]),
+        )
+        return df.to_html(escape=False, index=False) + "\n"
 
     @property
     def plots_table(self) -> str:
         """Plots comparison table."""
-        base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
 
         rows: list = []
         for plot in self.plots_list:
-            url_a = base_url + "main/" + plot
-            url_b = base_url + "feature/" + plot
+            url_a = self.plots_base_url + "main/" + plot
+            url_b = self.plots_base_url + "feature/" + plot
             rows.append(
                 [
                     f'<img src="{url_a}" alt="Image not found in results">',
@@ -575,6 +603,14 @@ class Comment(CommentData):
             f"Last updated on `{time}`."
         )
 
+    def needed_plots(self):
+        if self.sucessfull_run:
+            body_sucessfull = RunSuccessfull()
+            plots_string = " ".join(body_sucessfull.variables_plot_strings)
+            return plots_string
+        else:
+            ""
+
     def __repr__(self) -> str:
         """Return full formatted comment."""
         if self.sucessfull_run:
@@ -598,7 +634,21 @@ class Comment(CommentData):
             )
 
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser(description="Process some comments.")
+    parser.add_argument(
+        "command", nargs="?", default="", help='Command to run, e.g., "plots".'
+    )
+    args = parser.parse_args()
+
     comment = Comment()
 
-    print(comment)  # noqa T201
+    if args.command == "plots":
+        print(comment.needed_plots())
+
+    else:
+        print(comment)  # noqa T201
+
+
+if __name__ == "__main__":
+    main()
