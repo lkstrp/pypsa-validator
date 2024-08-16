@@ -56,7 +56,11 @@ def min_max_normalized_mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
 
 
 def mean_absolute_percentage_error(
-    y_true: ArrayLike, y_pred: ArrayLike, epsilon: float = 1e-5
+    y_true: ArrayLike,
+    y_pred: ArrayLike,
+    epsilon: float = 1e-5,
+    aggregate: bool = True,
+    ignore_inf=True,
 ) -> float:
     """
     Calculate the Mean Absolute Percentage Error (MAPE).
@@ -78,15 +82,22 @@ def mean_absolute_percentage_error(
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
 
-    # Ignore -inf and inf values in y_true
-    y_true = y_true[np.isfinite(y_true)]
-    y_pred = y_pred[np.isfinite(y_pred)]
+    # Ignore -inf and inf values
+    if ignore_inf:
+        y_true = y_true[np.isfinite(y_true)]
+        y_pred = y_pred[np.isfinite(y_pred)]
 
     # Avoid division by zero
     y_true = y_true + epsilon
     y_pred = y_pred + epsilon
 
-    return np.mean(np.abs((y_true - y_pred) / y_true))
+    # Calculate the absolute percentage errors
+    mape = np.abs((y_true - y_pred) / y_true)
+
+    if aggregate:
+        mape = np.mean(mape)
+
+    return mape
 
 
 def create_numeric_mask(arr: ArrayLike) -> np.ndarray:
@@ -210,6 +221,8 @@ class RunSuccessfull(CommentData):
             if plot.split(".")[-1] in ["png", "jpg", "jpeg", "svg"]
         ]
 
+        self._variables_deviation_ds = None
+
     # Status strings for file comparison table
     STATUS_FILE_MISSING = " :warning: Missing"
     STATUS_EQUAL = ":white_check_mark: Equal"
@@ -220,6 +233,67 @@ class RunSuccessfull(CommentData):
     STATUS_CHANGED_NON_NUMERIC = ":warning: Changed (non-numeric data)"
     STATUS_ALMOST_EQUAL = ":white_check_mark: Almost equal"
     STATUS_NEW = ":warning: New"
+
+    VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
+
+    @property
+    def variables_deviation_ds(self):
+        if self._variables_deviation_ds is not None:
+            return self._variables_deviation_ds
+        vars1 = pd.read_excel(self.dir_main / self.VARIABLES_FILE)
+        vars2 = pd.read_excel(self.dir_feature / self.VARIABLES_FILE)
+        vars1 = vars1.set_index("Variable").loc[
+            :, [col for col in vars1.columns if str(col).replace(".", "", 1).isdigit()]
+        ]
+        vars2 = vars2.set_index("Variable").loc[
+            :, [col for col in vars2.columns if str(col).replace(".", "", 1).isdigit()]
+        ]
+
+        assert vars1.index.equals(vars2.index)
+
+        deviation = mean_absolute_percentage_error(
+            vars1, vars2, ignore_inf=False, aggregate=False
+        )
+        deviation = pd.Series(
+            np.round(deviation, 2).mean(axis=1), index=vars1.index
+        ).sort_values(ascending=False)
+
+        self._variables_deviation_ds = deviation
+
+        return self._variables_deviation_ds
+
+    @property
+    def variables_comparison(self) -> str:
+        if (
+            not (self.dir_main / self.VARIABLES_FILE).exists()
+            or not (self.dir_feature / self.VARIABLES_FILE).exists()
+        ):
+            return ""
+
+        df = self.variables_deviation_ds.loc[self.variables_deviation_ds > 5].apply(
+            lambda x: f"{x:.2f}%"
+        )
+        df = pd.DataFrame(df, columns=["MAPE"])
+        df.index.name = ""
+
+        return (
+            f"{df.to_html(escape=False)}\n"
+            f"\n"
+            f"MAPE: Mean Absolute Percentage Error\n"
+            f"Threshold: MAPE > 5%\n"
+            f"Only variables reaching the threshold are shown. Find the equivalent "
+            f"plot for all of them below.\n\n"
+        )
+
+    @property
+    def changed_variables_plots(self) -> str:
+        if (
+            not (self.dir_main / self.VARIABLES_FILE).exists()
+            or not (self.dir_feature / self.VARIABLES_FILE).exists()
+        ):
+            return ""
+        # Not implemented yet
+        return ""
 
     @property
     def plots_table(self) -> str:
@@ -244,6 +318,15 @@ class RunSuccessfull(CommentData):
         )
         return df.to_html(escape=False, index=False) + "\n"
 
+    def _read_to_dataframe(self, path: Path) -> pd.DataFrame:
+        """Read a file to a dataframe."""
+        if path.suffix == ".csv":
+            return pd.read_csv(path)
+        elif path.suffix in [".xlsx", ".xls"]:
+            return pd.read_excel(path)
+        else:
+            return None
+
     @property
     def files_table(self) -> str:
         """Files comparison table."""
@@ -252,88 +335,92 @@ class RunSuccessfull(CommentData):
         # Loop through all files in main dir
         for root, _, files in os.walk(self.dir_main):
             for file in files:
-                if file.endswith(".csv"):
-                    path_in_main = Path(root) / file
-                    relative_path = os.path.relpath(path_in_main, self.dir_main)
-                    index_str = "../" + "/".join(str(relative_path).split("/")[1:])
-                    path_in_feature = self.dir_feature / relative_path
+                path_in_main = Path(root) / file
+                relative_path = os.path.relpath(path_in_main, self.dir_main)
+                index_str = "/".join(str(relative_path).split("/")[1:])
+                path_in_feature = self.dir_feature / relative_path
 
-                    if not path_in_feature.exists():
-                        rows[file] = [index_str, "", self.STATUS_FILE_MISSING, "", ""]
-                        continue
+                if not path_in_feature.exists():
+                    rows[file] = [index_str, "", self.STATUS_FILE_MISSING, "", ""]
+                    continue
 
-                    df1 = pd.read_csv(path_in_main)
-                    df2 = pd.read_csv(path_in_feature)
+                df1 = self._read_to_dataframe(path_in_main)
+                if df1 is None:
+                    continue
+                df2 = self._read_to_dataframe(path_in_feature)
 
-                    if df1.equals(df2):
-                        rows[file] = [index_str, "", self.STATUS_EQUAL, "", ""]
+                if df1.equals(df2):
+                    rows[file] = [index_str, "", self.STATUS_EQUAL, "", ""]
 
-                    # Numeric type mismatch
-                    elif df1.apply(pd.to_numeric, errors="coerce").equals(
-                        df2.apply(pd.to_numeric, errors="coerce")
-                    ):
-                        rows[file] = [index_str, "", self.STATUS_TYPE_MISMATCH, "", ""]
+                # Numeric type mismatch
+                elif df1.apply(pd.to_numeric, errors="coerce").equals(
+                    df2.apply(pd.to_numeric, errors="coerce")
+                ):
+                    rows[file] = [index_str, "", self.STATUS_TYPE_MISMATCH, "", ""]
 
-                    # Nan mismatch
-                    elif not df1.isna().equals(df2.isna()):
-                        rows[file] = [index_str, "", self.STATUS_NAN_MISMATCH, "", ""]
+                # Nan mismatch
+                elif not df1.isna().equals(df2.isna()):
+                    rows[file] = [index_str, "", self.STATUS_NAN_MISMATCH, "", ""]
 
-                    # Inf mismatch
-                    elif not df1.isin([np.inf, -np.inf]).equals(
-                        df2.isin([np.inf, -np.inf])
-                    ):
-                        rows[file] = [index_str, "", self.STATUS_INF_MISMATCH, "", ""]
-                    # Changed
-                    else:
-                        # Get numeric mask
-                        numeric_mask = ~np.isnan(
-                            df1.apply(pd.to_numeric, errors="coerce").to_numpy()
+                # Inf mismatch
+                elif not df1.isin([np.inf, -np.inf]).equals(
+                    df2.isin([np.inf, -np.inf])
+                ):
+                    rows[file] = [index_str, "", self.STATUS_INF_MISMATCH, "", ""]
+                # Changed
+                else:
+                    # Get numeric mask
+                    numeric_mask = ~np.isnan(
+                        df1.apply(pd.to_numeric, errors="coerce").to_numpy()
+                    )
+                    assert (
+                        numeric_mask
+                        == ~np.isnan(
+                            df2.apply(pd.to_numeric, errors="coerce").to_numpy()
                         )
-                        assert (
-                            numeric_mask
-                            == ~np.isnan(
-                                df2.apply(pd.to_numeric, errors="coerce").to_numpy()
-                            )
-                        ).all()
+                    ).all()
 
-                        # Check for changes in descriptive data
-                        df1_des = df1.copy()
-                        df2_des = df2.copy()
-                        df1_des.loc[~numeric_mask] = np.nan
-                        df2_des.loc[~numeric_mask] = np.nan
+                    # Check for changes in descriptive data
+                    df1_des = df1.copy()
+                    df2_des = df2.copy()
+                    df1_des.loc[~numeric_mask] = np.nan
+                    df2_des.loc[~numeric_mask] = np.nan
 
-                        # Check for changes in numeric data
-                        arr1_num = pd.to_numeric(df1.to_numpy()[numeric_mask])
-                        arr2_num = pd.to_numeric(df2.to_numpy()[numeric_mask])
+                    # Check for changes in numeric data
+                    arr1_num = pd.to_numeric(df1.to_numpy()[numeric_mask])
+                    arr2_num = pd.to_numeric(df2.to_numpy()[numeric_mask])
 
-                        nmae = min_max_normalized_mae(arr1_num, arr2_num)
-                        mape = mean_absolute_percentage_error(arr1_num, arr2_num)
+                    nmae = min_max_normalized_mae(arr1_num, arr2_num)
+                    mape = mean_absolute_percentage_error(arr1_num, arr2_num)
 
-                        if not df1_des.equals(df2_des):
-                            status = self.STATUS_CHANGED_NON_NUMERIC
-                        elif nmae > 0.05 and mape > 0.05:
-                            status = self.STATUS_CHANGED_NUMERIC
-                        else:
-                            status = self.STATUS_ALMOST_EQUAL
+                    if not df1_des.equals(df2_des):
+                        status = self.STATUS_CHANGED_NON_NUMERIC
+                    elif nmae > 0.05 and mape > 0.05:
+                        status = self.STATUS_CHANGED_NUMERIC
+                    else:
+                        status = self.STATUS_ALMOST_EQUAL
 
-                        rows[file] = [
-                            index_str,
-                            f"{numeric_mask.mean():.1%}",
-                            status,
-                            f"{nmae:.2f}",
-                            f"{mape*100:.1f}%" if mape < 1 else f"{mape*100:.2e}%",
-                        ]
+                    rows[file] = [
+                        index_str,
+                        f"{numeric_mask.mean():.1%}",
+                        status,
+                        f"{nmae:.2f}",
+                        f"{mape*100:.1f}%" if mape < 1 else f"{mape*100:.2e}%",
+                    ]
 
         # Loop through all files in feature dir to check for new files
         for root, _, files in os.walk(self.dir_feature):
             for file in files:
-                if file.endswith(".csv"):
-                    path_in_feature = Path(root) / file
-                    relative_path = os.path.relpath(path_in_feature, self.dir_feature)
-                    index_str = "../" + "/".join(str(relative_path).split("/")[1:])
+                path_in_feature = Path(root) / file
+                relative_path = os.path.relpath(path_in_feature, self.dir_feature)
+                index_str = "../" + "/".join(str(relative_path).split("/")[1:])
 
-                    if not path_in_feature.exists():
-                        rows[file] = [index_str, "", self.STATUS_NEW, "", ""]
+                df = self._read_to_dataframe(path_in_feature)
+                if df is None:
+                    continue
+
+                if not path_in_feature.exists():
+                    rows[file] = [index_str, "", self.STATUS_NEW, "", ""]
 
         # Combine and sort the results
         df = pd.DataFrame(rows, index=["Path", "Numeric", "Status", "NMAE", "MAPE"]).T
@@ -358,25 +445,31 @@ class RunSuccessfull(CommentData):
             f"\n"
             f"MAPE: Mean Absolute Percentage Error\n"
             f"NMAE: Mean Absolute Error on Min-Max Normalized Data\n"
-            f"Status Thresholds: NMAE > 0.05 and MAPE > 5%\n\n"
+            f"Status Threshold: NMAE > 0.05 and MAPE > 5%\n\n"
         )
 
     @property
     def body(self) -> str:
         """Body text for successfull run."""
+
+        def create_details_block(summary: str, content: str) -> str:
+            if content:
+                return (
+                    f"<details>\n"
+                    f"    <summary>{summary}</summary>\n"
+                    f"{content}"
+                    f"</details>\n"
+                    f"\n"
+                    f"\n"
+                )
+            else:
+                return ""
+
         return (
-            f"<details>\n"
-            f"    <summary>Result plots comparison</summary>\n"
-            f"{self.plots_table}"
-            f"</details>\n"
-            f"\n"
-            f"\n"
-            f"<details>\n"
-            f"    <summary>Result files comparison</summary>\n"
-            f"{self.files_table}"
-            f"</details>\n"
-            f"\n"
-            f"\n"
+            f"{create_details_block('Variables comparison', self.variables_comparison)}"
+            f"{create_details_block('Variables changed plots', self.changed_variables_plots)}"
+            f"{create_details_block('General Plots comparison', self.plots_table)}"
+            f"{create_details_block('General Files comparison', self.files_table)}"
         )
 
     def __call__(self) -> str:
