@@ -581,7 +581,7 @@ class Comment(CommentData):
         if self.sucessfull_run:
             body_sucessfull = RunSuccessfull()
 
-            plots_string = " ".join(body_sucessfull.variables_deviation_ds.index)
+            plots_string = "\n".join(body_sucessfull.variables_deviation_ds.index)
             plots_string = re.sub(r"[ |]", "_", plots_string)
             return plots_string
         else:

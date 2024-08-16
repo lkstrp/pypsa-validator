@@ -244,8 +244,7 @@ runs:
       do
         subpath="${plotpath%/*}"
         plot="${plotpath##*/}"
-        echo "Copying plot: ${plot}"
-        echo "from path: ${subpath}"
+        echo "Copying plot: ${plot} from path: ${subpath}"
 
         # Create directories
         mkdir -p "_validation-images/main/${PREFIX_MAIN}/${subpath}"
