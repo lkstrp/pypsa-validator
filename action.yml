@@ -229,7 +229,7 @@ runs:
       # Get static plot list (from input)
       read -a plots_array_input <<< ${{ inputs.plots }}
       # Get dynamic plot list (from comment script)
-      read -a plots_array_dynamic <<< "$(python draft_comment.py)"
+      read -a plots_array_dynamic <<< "$(python draft_comment.py plots)"
 
       plots_array="${plots_array_input[@]} ${plots_array_dynamic[@]}"
 
