@@ -586,7 +586,7 @@ class Comment(CommentData):
                 .apply(lambda x: x + ".png")
             )
 
-            plots_string = "\n".join(plots)
+            plots_string = " ".join(plots)
             return plots_string
         else:
             ""
