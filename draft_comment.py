@@ -235,6 +235,7 @@ class RunSuccessfull(CommentData):
     STATUS_ALMOST_EQUAL = ":white_check_mark: Almost equal"
     STATUS_NEW = ":warning: New"
 
+    PLOT_BASE_URL = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
     VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
     VARIABLES_THRESHOLD = 5
 
@@ -267,6 +268,16 @@ class RunSuccessfull(CommentData):
         return self._variables_deviation_ds
 
     @property
+    def variables_plot_strings(self):
+        plots = (
+            self.variables_deviation_ds.index.to_series()
+            .apply(lambda x: re.sub(r"[ |]", "-", x))
+            .apply(lambda x: "ariadne_comparison/" + x + ".png")
+            .to_list()
+        )
+        return plots
+
+    @property
     def variables_comparison(self) -> str:
         if (
             not (self.dir_main / self.VARIABLES_FILE).exists()
@@ -295,12 +306,10 @@ class RunSuccessfull(CommentData):
         ):
             return ""
 
-        base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
-
         rows: list = []
-        for plot in self.plots_list:
-            url_a = base_url + "main/ariadne_comparison/" + re.sub(r"[ |]", "-", plot)
-            url_b = base_url + "feature/" + re.sub(r"[ |]", "-", plot)
+        for plot in self.variables_plot_strings:
+            url_a = self.PLOT_BASE_URL + "main/" + plot
+            url_b = self.PLOT_BASE_URL + "feature/" + plot
             rows.append(
                 [
                     f'<img src="{url_a}" alt="Error in loading image.">',
@@ -598,13 +607,7 @@ class Comment(CommentData):
     def needed_plots(self):
         if self.sucessfull_run:
             body_sucessfull = RunSuccessfull()
-            plots = (
-                body_sucessfull.variables_deviation_ds.index.to_series()
-                .apply(lambda x: re.sub(r"[ |]", "-", x))
-                .apply(lambda x: "ariadne_comparison/" + x + ".png")
-            )
-
-            plots_string = " ".join(plots)
+            plots_string = " ".join(body_sucessfull.variables_plot_strings)
             return plots_string
         else:
             ""
