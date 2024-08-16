@@ -272,7 +272,7 @@ class RunSuccessfull(CommentData):
     def variables_plot_strings(self):
         plots = (
             self.variables_deviation_ds.index.to_series()
-            .apply(lambda x: re.sub(r"[ |]", "-", x))
+            .apply(lambda x: re.sub(r"[ |/]", "-", x))
             .apply(lambda x: "ariadne_comparison/" + x + ".png")
             .to_list()
         )
