@@ -294,8 +294,26 @@ class RunSuccessfull(CommentData):
             or not (self.dir_feature / self.VARIABLES_FILE).exists()
         ):
             return ""
-        # Not implemented yet
-        return ""
+
+        base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
+
+        rows: list = []
+        for plot in self.plots_list:
+            url_a = base_url + "main/ariadne_comparison/" + re.sub(r"[ |]", "-", plot)
+            url_b = base_url + "feature/" + re.sub(r"[ |]", "-", plot)
+            rows.append(
+                [
+                    f'<img src="{url_a}" alt="Error in loading image.">',
+                    f'<img src="{url_b}" alt="Error in loading image.">',
+                ]
+            )
+
+        df = pd.DataFrame(
+            rows,
+            columns=pd.Index(["Main branch", "Feature branch"]),
+            index=self.plots_list,
+        )
+        return df.to_html(escape=False, index=False) + "\n"
 
     @property
     def plots_table(self) -> str:
@@ -582,7 +600,7 @@ class Comment(CommentData):
             body_sucessfull = RunSuccessfull()
             plots = (
                 body_sucessfull.variables_deviation_ds.index.to_series()
-                .apply(lambda x: re.sub(r"[ |]", "_", x))
+                .apply(lambda x: re.sub(r"[ |]", "-", x))
                 .apply(lambda x: "ariadne_comparison/" + x + ".png")
             )
 
