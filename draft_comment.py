@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
+import argparse
 
 
 def min_max_normalized_mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
@@ -235,6 +236,7 @@ class RunSuccessfull(CommentData):
     STATUS_NEW = ":warning: New"
 
     VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
+    VARIABLES_THRESHOLD = 5
 
     @property
     def variables_deviation_ds(self):
@@ -258,8 +260,10 @@ class RunSuccessfull(CommentData):
             np.round(deviation, 2).mean(axis=1), index=vars1.index
         ).sort_values(ascending=False)
 
-        self._variables_deviation_ds = deviation
+        # Filter for threshold
+        deviation = deviation.loc[deviation > self.VARIABLES_THRESHOLD]
 
+        self._variables_deviation_ds = deviation
         return self._variables_deviation_ds
 
     @property
@@ -270,9 +274,7 @@ class RunSuccessfull(CommentData):
         ):
             return ""
 
-        df = self.variables_deviation_ds.loc[self.variables_deviation_ds > 5].apply(
-            lambda x: f"{x:.2f}%"
-        )
+        df = self.variables_deviation_ds.apply(lambda x: f"{x:.2f}%")
         df = pd.DataFrame(df, columns=["MAPE"])
         df.index.name = ""
 
@@ -575,6 +577,18 @@ class Comment(CommentData):
             f"Last updated on `{time}`."
         )
 
+    def needed_plots(self):
+        if self.sucessfull_run:
+            body_sucessfull = RunSuccessfull()
+
+
+
+            plots_string = "\n".join(body_sucessfull.variables_deviation_ds.index)
+            plots_string = re.sub(r"[ |]", "_", plots_string)
+            return plots_string
+        else:
+            ""
+
     def __repr__(self) -> str:
         """Return full formatted comment."""
         if self.sucessfull_run:
@@ -598,7 +612,21 @@ class Comment(CommentData):
             )
 
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser(description="Process some comments.")
+    parser.add_argument(
+        "command", nargs="?", default="", help='Command to run, e.g., "plots".'
+    )
+    args = parser.parse_args()
+
     comment = Comment()
 
-    print(comment)  # noqa T201
+    if args.command == "plots":
+        print(comment.needed_plots())
+
+    else:
+        print(comment)  # noqa T201
+
+
+if __name__ == "__main__":
+    main()

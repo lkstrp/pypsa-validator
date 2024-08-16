@@ -201,36 +201,7 @@ runs:
       ssh-key: ${{ inputs.validator_key }}
       path: validator-repo
 
-  - name: Upload relevant plots
-    id: upload-plots
-    if: ${{ inputs.step == 'create-comment' }}
-    run: |
-      cd $GITHUB_WORKSPACE/validator-repo
-
-      rm -rf _validation-images
-      mkdir -p _validation-images/feature
-      mkdir -p _validation-images/main
-              
-      # Copy plots  
-      read -a plots_array <<< ${{ inputs.plots }}
-      echo "Plots: ${plots_array[@]}"
-      for plot in "${plots_array[@]}"
-      do
-        echo "Copying ${plot}"
-        cp -r "$HOME/artifacts/results (main branch)/${PREFIX_MAIN}/${plot}" "_validation-images/main" || true # ignore if run failed
-        cp -r "$HOME/artifacts/results (feature branch)/${PREFIX_FEATURE}/${plot}" "_validation-images/feature" || true # ignore if run failed
-      done
-
-      # Add plots to repo branch
-      echo "Adding plots to repo branch"
-      git add _validation-images
-      git commit -m "[github-actions.ci] upload validation images to show in comment" || true # ignore if no changes
-      git push origin ${{ github.repository }}
-      echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-
-    shell: bash
-
-  - name: Set env for comment script
+  - name: Setup env variables
     if: ${{ inputs.step == 'create-comment' }}
     run: |
       # This needs to be done in a separate step to ensure the output is available
@@ -239,7 +210,7 @@ runs:
 
     shell: bash
 
-  - name: Draft comment
+  - name: Setup environment and retrieve scripts
     if: ${{ inputs.step == 'create-comment' }}
     run: |
       cd $GITHUB_WORKSPACE/validator-repo
@@ -256,13 +227,55 @@ runs:
       # Install requirements
       pip install -r requirements.txt
 
-      # # Set env for multiline plots string
-      # read -a plots_array <<< ${{ inputs.plots }}
-      # IFS=' '
-      # plots_string="${plots_array[*]}"
-      # echo "${plots_string}"
-      # echo "PLOTS=\"${plots_string}\"" >> $GITHUB_ENV 
-      # unset IFS
+    shell: bash
+
+  - name: Upload relevant plots
+    id: upload-plots
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      cd $GITHUB_WORKSPACE/validator-repo
+
+      # Get static plot list (from input)
+      read -a plots_array_input <<< ${{ inputs.plots }}
+      # Get dynamic plot list (from comment script)
+      read -a plots_array_dynamic <<< "$(python draft_comment.py)"
+
+      plots_array = "${plots_array_input[@]} ${plots_array_dynamic[@]}"
+
+      # Empty directory
+      rm -rf _validation-images
+      mkdir -p _validation-images/feature
+      mkdir -p _validation-images/main
+              
+      # Copy plots  
+      echo "Plots: ${plots_array[@]}"
+      for plotpath in "${plots_array[@]}"
+      do
+        subpath="${plotpath%/*}"
+        plot="${plotpath##*/}"
+        echo "Copying plot: ${subpath}/${plot}"
+
+        # Create directories
+        mkdir -p "_validation-images/main/${PREFIX_MAIN}/${subpath}"
+        mkdir -p "_validation-images/feature/${PREFIX_FEATURE}/${subpath}"
+
+        cp "$HOME/artifacts/results (main branch)/${PREFIX_MAIN}/${plotpath}/${plot}" "_validation-images/main/${PREFIX_MAIN}/${subpath}/" || true # ignore if run failed
+        cp "$HOME/artifacts/results (feature branch)/${PREFIX_FEATURE}/${plotpath}/${plot}" "_validation-images/feature/${PREFIX_FEATURE}/${subpath}/" || true # ignore if run failed
+      done
+
+      # Add plots to repo branch
+      echo "Adding plots to repo branch"
+      git add _validation-images
+      git commit -m "[github-actions.ci] upload validation images to show in comment" || true # ignore if no changes
+      git push origin ${{ github.repository }}
+      echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+    shell: bash
+
+  - name: Draft comment
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      cd $GITHUB_WORKSPACE/validator-repo
 
       # Draft comment
       # Note: The script uses many env variables. See the script for more details.
