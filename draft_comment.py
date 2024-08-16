@@ -132,7 +132,9 @@ class CommentData:
     behind_count: str = get_env_var("BEHIND_COUNT")
     git_diff_config: str = get_env_var("GIT_DIFF_CONFIG", default="")
     # For bodys
-    dir_artifacts: Path = Path(get_env_var("HOME")) / "artifacts"
+    dir_artifacts: Path = Path(
+        get_env_var("DIR_ARTIFACTS", Path(get_env_var("HOME")) / "artifacts")
+    )
     # For RunSuccessfull body
     plots_hash: str = get_env_var("PLOTS_HASH")
     plots_string: str = get_env_var("PLOTS")
@@ -182,8 +184,26 @@ class RunSuccessfull(CommentData):
 
     def __init__(self):
         """Initialize class."""
-        self.dir_main = self.dir_artifacts / "results (main branch)"
-        self.dir_feature = self.dir_artifacts / "results (feature branch)"
+        self.dir_main = [
+            file
+            for file in (self.dir_artifacts / "results (main branch)").iterdir()
+            if file.is_dir()
+        ]
+        if len(self.dir_main) != 1:
+            msg = "Expected exactly one directory in 'results (main branch)'."
+            raise ValueError(msg)
+        self.dir_main = self.dir_main[0]
+
+        self.dir_feature = [
+            file
+            for file in (self.dir_artifacts / "results (feature branch)").iterdir()
+            if file.is_dir()
+        ]
+        if len(self.dir_feature) != 1:
+            msg = "Expected exactly one directory in 'results (feature branch)'."
+            raise ValueError(msg)
+        self.dir_feature = self.dir_feature[0]
+
         self.plots_list = [
             plot.split("/")[-1]
             for plot in self.plots_string.split(" ")
