@@ -583,7 +583,7 @@ class Comment(CommentData):
             plots = (
                 body_sucessfull.variables_deviation_ds.index.to_series()
                 .apply(lambda x: re.sub(r"[ |]", "_", x))
-                .apply(lambda x: x + ".png")
+                .apply(lambda x: "ariadne_comparison/" + x + ".png")
             )
 
             plots_string = " ".join(plots)
