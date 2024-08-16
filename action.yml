@@ -201,15 +201,6 @@ runs:
       ssh-key: ${{ inputs.validator_key }}
       path: validator-repo
 
-  - name: Setup env variables
-    if: ${{ inputs.step == 'create-comment' }}
-    run: |
-      # This needs to be done in a separate step to ensure the output is available
-      echo "PLOTS_HASH=${{ steps.upload-plots.outputs.COMMIT_ID }}" >> $GITHUB_ENV
-      echo "PLOTS=${{ inputs.plots }}" >> $GITHUB_ENV
-
-    shell: bash
-
   - name: Setup environment and retrieve scripts
     if: ${{ inputs.step == 'create-comment' }}
     run: |
@@ -269,6 +260,15 @@ runs:
       git commit -m "[github-actions.ci] upload validation images to show in comment" || true # ignore if no changes
       git push origin ${{ github.repository }}
       echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+    shell: bash
+
+  - name: Setup env variables for comment
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      # This needs to be done in a separate step to ensure the output is available
+      echo "PLOTS_HASH=${{ steps.upload-plots.outputs.COMMIT_ID }}" >> $GITHUB_ENV
+      echo "PLOTS=${{ inputs.plots }}" >> $GITHUB_ENV
 
     shell: bash
 

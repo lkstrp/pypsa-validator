@@ -148,8 +148,8 @@ class CommentData:
         get_env_var("DIR_ARTIFACTS", Path(get_env_var("HOME")) / "artifacts")
     )
     # For RunSuccessfull body
-    plots_hash: str = get_env_var("PLOTS_HASH")
-    plots_string: str = get_env_var("PLOTS")
+    plots_hash: str = get_env_var("PLOTS_HASH", "")
+    plots_string: str = get_env_var("PLOTS", "")
 
     _sucessfull_run = None
 
@@ -580,8 +580,6 @@ class Comment(CommentData):
     def needed_plots(self):
         if self.sucessfull_run:
             body_sucessfull = RunSuccessfull()
-
-
 
             plots_string = "\n".join(body_sucessfull.variables_deviation_ds.index)
             plots_string = re.sub(r"[ |]", "_", plots_string)
