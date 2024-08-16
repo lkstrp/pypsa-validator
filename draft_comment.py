@@ -580,9 +580,13 @@ class Comment(CommentData):
     def needed_plots(self):
         if self.sucessfull_run:
             body_sucessfull = RunSuccessfull()
+            plots = (
+                body_sucessfull.variables_deviation_ds.index.to_series()
+                .apply(lambda x: re.sub(r"[ |]", "_", x))
+                .apply(lambda x: x + ".png")
+            )
 
-            plots_string = "\n".join(body_sucessfull.variables_deviation_ds.index)
-            plots_string = re.sub(r"[ |]", "_", plots_string)
+            plots_string = "\n".join(plots)
             return plots_string
         else:
             ""
