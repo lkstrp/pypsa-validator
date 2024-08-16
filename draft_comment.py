@@ -321,7 +321,6 @@ class RunSuccessfull(CommentData):
         df = pd.DataFrame(
             rows,
             columns=pd.Index(["Main branch", "Feature branch"]),
-            index=self.plots_list,
         )
         return df.to_html(escape=False, index=False) + "\n"
 
