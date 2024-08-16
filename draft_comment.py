@@ -125,8 +125,8 @@ def get_env_var(var_name: str, default: Any = None) -> Any:
     if value == "" and default is None:
         msg = f"The environment variable '{var_name}' is not set."
         raise OSError(msg)
-    if value.lower() in ["true", "false"]:
-        return value.lower() == "true"
+    if str(value).lower() in ["true", "false"]:
+        return str(value).lower() == "true"
     return value
 
 
