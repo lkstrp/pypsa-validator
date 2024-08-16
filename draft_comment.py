@@ -224,6 +224,8 @@ class RunSuccessfull(CommentData):
 
         self._variables_deviation_ds = None
 
+        self.plots_base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
+
     # Status strings for file comparison table
     STATUS_FILE_MISSING = " :warning: Missing"
     STATUS_EQUAL = ":white_check_mark: Equal"
@@ -235,7 +237,6 @@ class RunSuccessfull(CommentData):
     STATUS_ALMOST_EQUAL = ":white_check_mark: Almost equal"
     STATUS_NEW = ":warning: New"
 
-    PLOT_BASE_URL = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
     VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
     VARIABLES_THRESHOLD = 5
 
@@ -308,8 +309,8 @@ class RunSuccessfull(CommentData):
 
         rows: list = []
         for plot in self.variables_plot_strings:
-            url_a = self.PLOT_BASE_URL + "main/" + plot
-            url_b = self.PLOT_BASE_URL + "feature/" + plot
+            url_a = self.plots_base_url + "main/" + plot
+            url_b = self.plots_base_url + "feature/" + plot
             rows.append(
                 [
                     f'<img src="{url_a}" alt="Error in loading image.">',
@@ -327,12 +328,11 @@ class RunSuccessfull(CommentData):
     @property
     def plots_table(self) -> str:
         """Plots comparison table."""
-        base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
 
         rows: list = []
         for plot in self.plots_list:
-            url_a = base_url + "main/" + plot
-            url_b = base_url + "feature/" + plot
+            url_a = self.plots_base_url + "main/" + plot
+            url_b = self.plots_base_url + "feature/" + plot
             rows.append(
                 [
                     f'<img src="{url_a}" alt="Image not found in results">',
