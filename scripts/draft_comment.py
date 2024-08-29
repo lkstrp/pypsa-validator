@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from metrics import mean_absolute_percentage_error, min_max_normalized_mae
+from metrics import min_max_normalized_mae, normalized_root_mean_square_error
 from numpy.typing import ArrayLike
 
 
@@ -109,6 +109,30 @@ class CommentData:
         return self._sucessfull_run
 
 
+def get_deviation_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    nrmse_series = df1.apply(
+        lambda row: normalized_root_mean_square_error(
+            row.values,
+            df2.loc[row.name].values,
+            normalization="min-max",
+        ),
+        axis=1,
+    )
+    pearson_series = df1.apply(
+        lambda row: np.corrcoef(row.values, df2.loc[row.name].values)[0, 1],
+        axis=1,
+    ).fillna(0)
+
+    if df1.empty:
+        return pd.DataFrame(columns=["NRMSE", "Pearson"])
+    else:
+        deviation_df = pd.DataFrame(
+            {"NRMSE": nrmse_series, "Pearson": pearson_series}
+        ).sort_values(by="NRMSE", ascending=False)
+
+        return deviation_df
+
+
 class RunSuccessfull(CommentData):
     """Class to generate successfull run component."""
 
@@ -140,7 +164,7 @@ class RunSuccessfull(CommentData):
             if plot.split(".")[-1] in ["png", "jpg", "jpeg", "svg"]
         ]
 
-        self._variables_deviation_ds = None
+        self._variables_deviation_df = None
 
         self.plots_base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
 
@@ -156,12 +180,12 @@ class RunSuccessfull(CommentData):
     STATUS_NEW = ":warning: New"
 
     VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
-    VARIABLES_THRESHOLD = 5
+    VARIABLES_THRESHOLD = 2
 
     @property
-    def variables_deviation_ds(self):
-        if self._variables_deviation_ds is not None:
-            return self._variables_deviation_ds
+    def variables_deviation_df(self):
+        if self._variables_deviation_df is not None:
+            return self._variables_deviation_df
         vars1 = pd.read_excel(self.dir_main / self.VARIABLES_FILE)
         vars2 = pd.read_excel(self.dir_feature / self.VARIABLES_FILE)
         vars1 = vars1.set_index("Variable").loc[
@@ -173,23 +197,20 @@ class RunSuccessfull(CommentData):
 
         assert vars1.index.equals(vars2.index)
 
-        deviation = mean_absolute_percentage_error(
-            vars1, vars2, ignore_inf=False, aggregate=False
-        )
-        deviation = pd.Series(
-            np.round(deviation, 2).mean(axis=1), index=vars1.index
-        ).sort_values(ascending=False)
+        deviation_df = get_deviation_df(vars1, vars2)
 
         # Filter for threshold
-        deviation = deviation.loc[deviation > self.VARIABLES_THRESHOLD]
+        deviation_df = deviation_df.loc[
+            deviation_df["NRMSE"] > self.VARIABLES_THRESHOLD
+        ]
 
-        self._variables_deviation_ds = deviation
-        return self._variables_deviation_ds
+        self._variables_deviation_df = deviation_df
+        return self._variables_deviation_df
 
     @property
     def variables_plot_strings(self):
         plots = (
-            self.variables_deviation_ds.index.to_series()
+            self.variables_deviation_df.index.to_series()
             .apply(lambda x: re.sub(r"[ |/]", "-", x))
             .apply(lambda x: "ariadne_comparison/" + x + ".png")
             .to_list()
@@ -204,15 +225,15 @@ class RunSuccessfull(CommentData):
         ):
             return ""
 
-        df = self.variables_deviation_ds.apply(lambda x: f"{x:.2f}%")
-        df = pd.DataFrame(df, columns=["MAPE"])
+        df = self.variables_deviation_df.map(lambda x: f"{x:.3f}")
         df.index.name = None
 
         return (
             f"{df.to_html(escape=False)}\n"
             f"\n"
-            f"MAPE: Mean Absolute Percentage Error\n"
-            f"Threshold: MAPE > 5%\n"
+            f"NRMSE: Normalized (min-max) Root Mean Square Error\n"
+            f"Pearson: Pearson correlation coefficient\n"
+            f"Threshold: NRMSE > {self.VARIABLES_THRESHOLD}\n"
             f"Only variables reaching the threshold are shown. Find the equivalent "
             f"plot for all of them below.\n\n"
         )
@@ -263,14 +284,39 @@ class RunSuccessfull(CommentData):
         )
         return df.to_html(escape=False, index=False) + "\n"
 
-    def _read_to_dataframe(self, path: Path) -> pd.DataFrame:
-        """Read a file to a dataframe."""
-        if path.suffix == ".csv":
-            return pd.read_csv(path)
-        elif path.suffix in [".xlsx", ".xls"]:
-            return pd.read_excel(path)
+    def _format_csvs_dir_files(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Format csvs dir dataframes."""
+        if "planning_horizon" in df.columns:
+            df = df.T.reset_index()
+        # Relevant header row
+        header_row_index = df.index[df.iloc[:, 0] == "planning_horizon"].tolist()[0]
+        # Set header
+        df.columns = df.iloc[header_row_index]
+        # Fill nan values in header
+        df.columns = [
+            f"col{i+1}" if pd.isna(col) or col == "" or col is None else col
+            for i, col in enumerate(df.columns)
+        ]
+        # Remove all rows before header
+        df = df.iloc[header_row_index + 1 :]
+
+        # Make non-numeric values the index
+        non_numeric = df.apply(
+            lambda col: pd.to_numeric(col, errors="coerce").isna().all()
+        )
+
+        if non_numeric.any():
+            df = df.set_index(df.columns[non_numeric].to_list())
         else:
-            return None
+            df = df.set_index("planning_horizon")
+
+        # Make the rest numeric
+        df = df.apply(pd.to_numeric)
+
+        df.index.name = None
+        df.columns.name = None
+
+        return df
 
     @property
     def files_table(self) -> str:
@@ -285,33 +331,38 @@ class RunSuccessfull(CommentData):
                 index_str = "/".join(str(relative_path).split("/")[1:])
                 path_in_feature = self.dir_feature / relative_path
 
-                if not path_in_feature.exists():
-                    rows[file] = [index_str, "", self.STATUS_FILE_MISSING, "", ""]
+                if path_in_main.parent.name == "csvs":
+                    df1 = pd.read_csv(path_in_main)
+
+                    if not path_in_feature.exists():
+                        rows[file] = [index_str, self.STATUS_FILE_MISSING, "", ""]
+                        continue
+
+                    df2 = pd.read_csv(path_in_feature)
+                else:
                     continue
 
-                df1 = self._read_to_dataframe(path_in_main)
-                if df1 is None:
-                    continue
-                df2 = self._read_to_dataframe(path_in_feature)
+                df1 = self._format_csvs_dir_files(df1)
+                df2 = self._format_csvs_dir_files(df2)
 
                 if df1.equals(df2):
-                    rows[file] = [index_str, "", self.STATUS_EQUAL, "", ""]
+                    rows[file] = [index_str, self.STATUS_EQUAL, "", ""]
 
                 # Numeric type mismatch
                 elif df1.apply(pd.to_numeric, errors="coerce").equals(
                     df2.apply(pd.to_numeric, errors="coerce")
                 ):
-                    rows[file] = [index_str, "", self.STATUS_TYPE_MISMATCH, "", ""]
+                    rows[file] = [index_str, self.STATUS_TYPE_MISMATCH, "", ""]
 
                 # Nan mismatch
                 elif not df1.isna().equals(df2.isna()):
-                    rows[file] = [index_str, "", self.STATUS_NAN_MISMATCH, "", ""]
+                    rows[file] = [index_str, self.STATUS_NAN_MISMATCH, "", ""]
 
                 # Inf mismatch
                 elif not df1.isin([np.inf, -np.inf]).equals(
                     df2.isin([np.inf, -np.inf])
                 ):
-                    rows[file] = [index_str, "", self.STATUS_INF_MISMATCH, "", ""]
+                    rows[file] = [index_str, self.STATUS_INF_MISMATCH, "", ""]
                 # Changed
                 else:
                     # Get numeric mask
@@ -328,29 +379,30 @@ class RunSuccessfull(CommentData):
                     # Check for changes in descriptive data
                     df1_des = df1.copy()
                     df2_des = df2.copy()
-                    df1_des.loc[~numeric_mask] = np.nan
-                    df2_des.loc[~numeric_mask] = np.nan
+                    df1_des.loc[numeric_mask] = np.nan
+                    df2_des.loc[numeric_mask] = np.nan
 
                     # Check for changes in numeric data
                     arr1_num = pd.to_numeric(df1.to_numpy()[numeric_mask])
                     arr2_num = pd.to_numeric(df2.to_numpy()[numeric_mask])
 
-                    nmae = min_max_normalized_mae(arr1_num, arr2_num)
-                    mape = mean_absolute_percentage_error(arr1_num, arr2_num)
+                    nrmse = normalized_root_mean_square_error(
+                        arr1_num, arr2_num, normalization="min-max"
+                    )
+                    mae_n = min_max_normalized_mae(arr1_num, arr2_num)
 
                     if not df1_des.equals(df2_des):
                         status = self.STATUS_CHANGED_NON_NUMERIC
-                    elif nmae > 0.05 and mape > 0.05:
+                    elif nrmse > 2 and mae_n > 0.05:
                         status = self.STATUS_CHANGED_NUMERIC
                     else:
                         status = self.STATUS_ALMOST_EQUAL
 
                     rows[file] = [
                         index_str,
-                        f"{numeric_mask.mean():.1%}",
                         status,
-                        f"{nmae:.2f}",
-                        f"{mape*100:.1f}%" if mape < 1 else f"{mape*100:.2e}%",
+                        f"{nrmse:.3f}",
+                        f"{mae_n:.2f}",
                     ]
 
         # Loop through all files in feature dir to check for new files
@@ -360,15 +412,14 @@ class RunSuccessfull(CommentData):
                 relative_path = os.path.relpath(path_in_feature, self.dir_feature)
                 index_str = "../" + "/".join(str(relative_path).split("/")[1:])
 
-                df = self._read_to_dataframe(path_in_feature)
-                if df is None:
-                    continue
+                if path_in_main.parent.name == "csvs":
+                    df = pd.read_csv(path_in_feature)
 
                 if not path_in_feature.exists():
-                    rows[file] = [index_str, "", self.STATUS_NEW, "", ""]
+                    rows[file] = [index_str, self.STATUS_NEW, "", ""]
 
         # Combine and sort the results
-        df = pd.DataFrame(rows, index=["Path", "Numeric", "Status", "NMAE", "MAPE"]).T
+        df = pd.DataFrame(rows, index=["Path", "Status", "NRMSE", "MAE (norm)"]).T
 
         status_order = {
             self.STATUS_CHANGED_NUMERIC: 0,
@@ -388,9 +439,9 @@ class RunSuccessfull(CommentData):
         return (
             f"{df.to_html(escape=False)}\n"
             f"\n"
-            f"MAPE: Mean Absolute Percentage Error\n"
-            f"NMAE: Mean Absolute Error on Min-Max Normalized Data\n"
-            f"Status Threshold: NMAE > 0.05 and MAPE > 5%\n\n"
+            f"NRMSE: Normalized (min-max) Root Mean Square Error\n"
+            f"MAE (norm): Mean Absolute Error on normalized Data (min-max\n"
+            f"Status Threshold: MAE (norm) > 0.05 and NRMSE > 2\n"
         )
 
     @property
