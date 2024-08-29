@@ -331,16 +331,16 @@ class RunSuccessfull(CommentData):
                 index_str = "/".join(str(relative_path).split("/")[1:])
                 path_in_feature = self.dir_feature / relative_path
 
-                if path_in_main.parent.name == "csvs":
+                if path_in_main.parent.name == "csvs" and path_in_main.suffix == ".csv":
                     df1 = pd.read_csv(path_in_main)
-
-                    if not path_in_feature.exists():
-                        rows[file] = [index_str, self.STATUS_FILE_MISSING, "", ""]
-                        continue
-
-                    df2 = pd.read_csv(path_in_feature)
                 else:
                     continue
+
+                if not path_in_feature.exists():
+                    rows[file] = [index_str, self.STATUS_FILE_MISSING, "", ""]
+                    continue
+                else:
+                    df2 = pd.read_csv(path_in_feature)
 
                 df1 = self._format_csvs_dir_files(df1)
                 df2 = self._format_csvs_dir_files(df2)
@@ -412,10 +412,15 @@ class RunSuccessfull(CommentData):
                 relative_path = os.path.relpath(path_in_feature, self.dir_feature)
                 index_str = "../" + "/".join(str(relative_path).split("/")[1:])
 
-                if path_in_main.parent.name == "csvs":
-                    df = pd.read_csv(path_in_feature)
+                if (
+                    path_in_feature.parent.name == "csvs"
+                    and path_in_feature.suffix == ".csv"
+                ):
+                    df1 = pd.read_csv(path_in_main)
+                else:
+                    continue
 
-                if not path_in_feature.exists():
+                if not path_in_main.exists():
                     rows[file] = [index_str, self.STATUS_NEW, "", ""]
 
         # Combine and sort the results
