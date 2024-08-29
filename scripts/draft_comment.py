@@ -80,8 +80,8 @@ class CommentData:
         )
         if len(logs) != 1:
             msg = (
-                f"Expected exactly one log file in {branch_type}.snakemake/log "
-                "directory."
+                f"Expected exactly one log file in snakemake/log directory "
+                "({branch_type} branch)."
             )
             raise ValueError(msg)
 
