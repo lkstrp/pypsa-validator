@@ -244,7 +244,7 @@ runs:
       # Get static plot list (from input)
       read -a plots_array_input <<< ${{ inputs.plots }}
       # Get dynamic plot list (from comment script)
-      read -a plots_array_dynamic <<< "$(python draft_comment.py plots)"
+      read -a plots_array_dynamic <<< "$(python scripts/draft_comment.py plots)"
 
       plots_array=("${plots_array_input[@]}" "${plots_array_dynamic[@]}")
 
@@ -294,7 +294,7 @@ runs:
 
       # Draft comment
       # Note: The script uses many env variables. See the script for more details.
-      python draft_comment.py > $GITHUB_WORKSPACE/comment.txt
+      python scripts/draft_comment.py > $GITHUB_WORKSPACE/comment.txt
 
     shell: bash
 
