@@ -93,6 +93,7 @@ class CommentData:
             r"(?<=\nMissingInputException: Missing input files for rule )(.*?)(?=:\n)",
             log,
         )
+        inpt_errors = list(set(inpt_errors))
 
         return rule_errors + inpt_errors
 
