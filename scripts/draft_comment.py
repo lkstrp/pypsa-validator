@@ -80,7 +80,7 @@ class CommentData:
         )
         if len(logs) != 1:
             msg = (
-                f"Expected exactly one log file in snakemake/log directory "
+                "Expected exactly one log file in snakemake/log directory "
                 "({branch_type} branch)."
             )
             raise ValueError(msg)
@@ -88,9 +88,13 @@ class CommentData:
         with logs[0].open() as file:
             log = file.read()
 
-        pattern = r"(?<=\nError in rule )(.*?)(?=:\n)"
+        rule_errors = re.findall(r"(?<=\nError in rule )(.*?)(?=:\n)", log)
+        inpt_errors = re.findall(
+            r"(?<=\nMissingInputException: Missing input files for rule )(.*?)(?=:\n)",
+            log,
+        )
 
-        return re.findall(pattern, log)
+        return rule_errors + inpt_errors
 
     @property
     def sucessfull_run(self) -> bool:
