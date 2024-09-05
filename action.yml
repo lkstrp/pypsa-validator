@@ -101,6 +101,8 @@ runs:
       _hash_feature=$(curl -s -H "Authorization: token ${{ github.token }}" \
           "https://api.github.com/repos/$source_repo/commits/$branch_name" | jq -r '.sha')
 
+      # TODO Needs checks for empty or null hashes
+
       echo "Main branch (${{ github.base_ref }}) hash: $_hash_main"
       echo "Feature branch (${{ github.head_ref }}) hash: $_hash_feature"
 
@@ -115,8 +117,9 @@ runs:
       --hash_feature $_hash_feature \
       --env_file ${{ inputs.env_file }} \
       --config_file ${{ inputs.snakemake_config }} \
-      --pre_command "${{ inputs.pre_command }}" \
-      --main_command "ariadne_all"
+      --main_command "${{ inputs.main_command }}" \
+      --pre_command "${{ inputs.pre_command }}" 
+      
 
     shell: bash
   
@@ -131,6 +134,18 @@ runs:
         ~/${{ github.repository }}/main/.snakemake/
         ~/${{ github.repository }}/feature/logs/
         ~/${{ github.repository }}/feature/.snakemake/
+      if-no-files-found: error
+      retention-days: 90
+      include-hidden-files: true
+
+  - name: Upload benchmarks
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: benchmarks
+      path: |
+        ~/${{ github.repository }}/main/.snakemake/
+        ~/${{ github.repository }}/feature/logs/      
       if-no-files-found: error
       retention-days: 90
       include-hidden-files: true
