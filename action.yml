@@ -138,6 +138,18 @@ runs:
       retention-days: 90
       include-hidden-files: true
 
+  - name: Upload benchmarks
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: benchmarks
+      path: |
+        ~/${{ github.repository }}/main/.snakemake/
+        ~/${{ github.repository }}/feature/logs/      
+      if-no-files-found: error
+      retention-days: 90
+      include-hidden-files: true
+
   - name: Upload artifacts (results main)
     if: ${{ inputs.step == 'run-self-hosted-validation' }}
     uses: actions/upload-artifact@v4
