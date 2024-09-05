@@ -41,9 +41,10 @@ runs:
   using: "composite"
   steps:
 
-    # ----------------------------------------
-    # 'run-self-hosted-validation' step
-    # ----------------------------------------
+  # ----------------------------------------
+  # For all steps
+  # ----------------------------------------
+
   - name: General setup and checks
     run: |
       # Check if from fork
@@ -67,6 +68,10 @@ runs:
       git config --global user.name "github-actions[bot]"
 
     shell: bash
+
+  # ----------------------------------------
+  # 'run-self-hosted-validation' step
+  # ----------------------------------------
 
   - name: Run self-hosted validation
     if: ${{ inputs.step == 'run-self-hosted-validation' }}
@@ -114,10 +119,48 @@ runs:
       --main_command "ariadne_all"
 
     shell: bash
+  
+  - name: Upload artifacts (logs)
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: logs
+      path: |
+        ~/${{ github.repository }}/validator-metadata.yml
+        ~/${{ github.repository }}/main/logs/
+        ~/${{ github.repository }}/main/.snakemake/
+        ~/${{ github.repository }}/feature/logs/
+        ~/${{ github.repository }}/feature/.snakemake/
+      if-no-files-found: error
+      retention-days: 90
+      include-hidden-files: true
 
-    # ----------------------------------------
-    # 'create-comment' step
-    # ----------------------------------------
+  - name: Upload artifacts (results main)
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: results (main branch)
+      path: |
+        ~/${{ github.repository }}/main/results
+      if-no-files-found: error
+      retention-days: 90
+      include-hidden-files: true
+      
+  - name: Upload artifacts (results feature)
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: results (feature branch)
+      path: |
+        ~/${{ github.repository }}/feature/results
+      if-no-files-found: error
+      retention-days: 90
+      include-hidden-files: true
+
+
+  # ----------------------------------------
+  # 'create-comment' step
+  # ----------------------------------------
 
   - name: Create comment specific setup and checks
     if: ${{ inputs.step == 'create-comment' }}
