@@ -342,14 +342,16 @@ runs:
 
     shell: bash
 
-  - name: Draft comment
+  - name: Create Validator Report
     if: ${{ inputs.step == 'create-comment' }}
     run: |
       cd $GITHUB_WORKSPACE/validator-repo
 
-      # Draft comment
+      # Create comment
       # Note: The script uses many env variables. See the script for more details.
       python scripts/draft_comment.py > $GITHUB_WORKSPACE/comment.txt
+
+      cat $GITHUB_WORKSPACE/comment.txt >> $GITHUB_STEP_SUMMARY
 
     shell: bash
 
