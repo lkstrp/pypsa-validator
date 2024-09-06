@@ -1,0 +1,416 @@
+name: 'PyPSA Validator Bot'
+description: 'PyPSA Validator Bot'
+autor: 'lkstrp'
+inputs:
+  step:
+    description: 'Step to run'
+    required: true
+    type: choice
+    options:
+    - 'run-self-hosted-validation'
+    - 'create-comment'
+  # Needed for 'run-self-hosted-validation' step
+  env_file:
+    description: 'File for conda/mamba environment'
+    type: string
+  snakemake_config:
+    description: 'Snakemake config file'
+    type: string
+  pre_command:
+    description: 'Pre-command to run before validation'
+    type: string
+  main_command:
+    description: 'Main command to run for validation'
+    type: string
+  # Needed for 'create-comment' step
+  plots:
+    description: 'Plots to be shown in comment'
+  validator_key:
+    description: 'Private ssh key to access the validator repo'
+    type: string
+  dev:
+    description: 'Run in development mode'
+    type: boolean
+    default: false
+
+# Reminder
+# - ${{ github.repository }} -> 'user/repo'
+# - ${{ github.event.repository.name }} -> 'repo'
+
+runs:
+  using: "composite"
+  steps:
+
+  # ----------------------------------------
+  # For all steps
+  # ----------------------------------------
+
+  - name: General setup and checks
+    run: |
+      # Check if from fork
+      if [ "${{ github.repository }}" != "${{ github.event.pull_request.head.repo.full_name }}" ]; then
+          echo "Running from fork."
+          fork=true
+          exit 1 # Not supported yet
+      else
+          echo "Running from main repository."
+          fork=false
+      fi
+
+      # Assert Github Token is set 
+      if [ -z "${{ github.token }}" ]; then
+          echo "Error: Github Token Secret not found"
+          exit 1
+      fi
+
+      # Bot config
+      git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      git config --global user.name "github-actions[bot]"
+
+    shell: bash
+
+  # ----------------------------------------
+  # 'run-self-hosted-validation' step
+  # ----------------------------------------
+
+  - name: Run self-hosted validation
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    run: |
+      echo "Running self-hosted validation..."
+
+      # Check for dev mode
+      USERNAME=$(whoami)
+      if [ "${{ inputs.dev }}" = true ]; then
+          echo "Development mode activated."
+          command_prefix="/home/$USERNAME/runner-scripts/run-dev.sh"
+      else
+          command_prefix="/home/$USERNAME/runner-scripts/run.sh"
+      fi
+
+      # Fetch hash of main branch
+      _hash_main=$(curl -s -H "Authorization: token ${{ github.token }}" \
+      "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.base_ref }}" | jq -r '.sha')
+
+      # Fetch hash of feature branch (via PR number, also works for branches from forks)
+      pr_details=$(curl -s -H "Authorization: token ${{ github.token }}" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}")
+      # Extract the repository and ref (branch name)
+      source_repo=$(echo "$pr_details" | jq -r '.head.repo.full_name')
+      branch_name=$(echo "$pr_details" | jq -r '.head.ref')
+      # Get the latest commit hash from the source repository
+      _hash_feature=$(curl -s -H "Authorization: token ${{ github.token }}" \
+          "https://api.github.com/repos/$source_repo/commits/$branch_name" | jq -r '.sha')
+
+      # TODO Needs checks for empty or null hashes
+
+      echo "Main branch (${{ github.base_ref }}) hash: $_hash_main"
+      echo "Feature branch (${{ github.head_ref }}) hash: $_hash_feature"
+
+      echo "${{ github.event.pull_request.head.repo.full_name }}"
+
+      # Execute the command with the common arguments
+      $command_prefix \
+      --repo ${{ github.repository }} \
+      --branch_main ${{ github.base_ref }} \
+      --branch_feature "pr/${{ github.event.number }}" \
+      --hash_main $_hash_main \
+      --hash_feature $_hash_feature \
+      --env_file ${{ inputs.env_file }} \
+      --config_file ${{ inputs.snakemake_config }} \
+      --main_command "${{ inputs.main_command }}" \
+      --pre_command "${{ inputs.pre_command }}" 
+      
+
+    shell: bash
+  
+  - name: Upload artifacts (logs)
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: logs
+      path: |
+        ~/${{ github.repository }}/validator-metadata.yml
+        ~/${{ github.repository }}/main/logs/
+        ~/${{ github.repository }}/main/.snakemake/
+        ~/${{ github.repository }}/feature/logs/
+        ~/${{ github.repository }}/feature/.snakemake/
+      if-no-files-found: error
+      retention-days: 90
+      include-hidden-files: true
+
+  - name: Upload benchmarks
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: benchmarks
+      path: |
+        ~/${{ github.repository }}/main/.snakemake/
+        ~/${{ github.repository }}/feature/logs/      
+      retention-days: 90
+      include-hidden-files: true
+
+  - name: Upload artifacts (results main)
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: results (main branch)
+      path: |
+        ~/${{ github.repository }}/main/results
+      retention-days: 90
+      include-hidden-files: true
+      
+  - name: Upload artifacts (results feature)
+    if: ${{ inputs.step == 'run-self-hosted-validation' }}
+    uses: actions/upload-artifact@v4
+    with:
+      name: results (feature branch)
+      path: |
+        ~/${{ github.repository }}/feature/results
+      retention-days: 90
+      include-hidden-files: true
+
+
+  # ----------------------------------------
+  # 'create-comment' step
+  # ----------------------------------------
+
+  - name: Create comment specific setup and checks
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      # Assert validator key is set
+      if [ -z ${{ inputs.validator_key }} ]; then
+          echo "Error: input 'validator_key' not set"
+          exit 1
+      fi
+    shell: bash
+
+  - name: Download artifacts
+    if: ${{ inputs.step == 'create-comment' }}
+    uses: actions/download-artifact@v4
+
+  - name: Move artifacts to home directory
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      # Move artifacts to home directory
+      mkdir $HOME/artifacts
+      mv ./* $HOME/artifacts
+
+    shell: bash
+
+  - name: Get variables from artifacts
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      # Get compared hashes
+      hash_main=$(yq e '.parameters.hash_main' $HOME/artifacts/logs/validator-metadata.yml)
+      echo "HASH_MAIN=$hash_main" >> $GITHUB_ENV
+      hash_feature=$(yq e '.parameters.hash_feature' $HOME/artifacts/logs/validator-metadata.yml)
+      echo "HASH_FEATURE=$hash_feature" >> $GITHUB_ENV
+      echo "Main commit hash: ${hash_main}"
+      echo "Feature commit hash: ${hash_feature}"
+
+      # Assert variables found  
+      if [[ -z $hash_main || -z $hash_feature ]]; then
+        echo "Error: Commit hashes not found"
+        exit 1
+      fi
+
+      # Get config prefix
+      prefix_main=$(yq e '.metadata.prefix_main' $HOME/artifacts/logs/validator-metadata.yml)
+      echo "PREFIX_MAIN=$prefix_main" >> $GITHUB_ENV
+      prefix_feature=$(yq e '.metadata.prefix_feature' $HOME/artifacts/logs/validator-metadata.yml)
+      echo "PREFIX_FEATURE=$prefix_feature" >> $GITHUB_ENV
+      echo "Main config prefix: ${prefix_main}"
+      echo "Feature config prefix: ${prefix_feature}"
+
+      # Assert variables found
+      if [[ -z $prefix_main || -z $prefix_feature ]]; then
+        echo "Error: Config prefixes not found"
+        exit 1
+      fi
+
+    shell: bash
+
+  - name: Checkout model repo
+    if: ${{ inputs.step == 'create-comment' }}
+    uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+      path: model-repo
+
+  - name: Get variables from repo
+    if: ${{ inputs.step == 'create-comment' }}
+    id: env-variables-repo
+    run: |
+      cd $GITHUB_WORKSPACE/model-repo
+
+      # Get git diff of used snakemake config
+      git_diff_config=$(git diff $HASH_MAIN $HASH_FEATURE -- ${{ inputs.snakemake_config }})
+
+      # Write to env: git diff config
+      echo "GIT_DIFF_CONFIG<<EOF" >> $GITHUB_ENV
+      echo "${git_diff_config}" >> $GITHUB_ENV
+      echo "EOF" >> $GITHUB_ENV
+      echo "Git diff config:\n${git_diff_config}"
+
+      # Get the number of commits ahead of main
+      behind_count=$(git rev-list --right-only --count $HASH_FEATURE...$HASH_MAIN)
+      echo "BEHIND_COUNT=$behind_count" >> $GITHUB_ENV
+      ahead_count=$(git rev-list --left-only --count $HASH_FEATURE...$HASH_MAIN)
+      echo "AHEAD_COUNT=$ahead_count" >> $GITHUB_ENV
+      echo "Behind count: $behind_count"
+      echo "Ahead count: $ahead_count"
+
+    shell: bash
+
+  - name: Checkout validator repo
+    if: ${{ inputs.step == 'create-comment' }}
+    uses: actions/checkout@v4
+    with:
+      repository: lkstrp/pypsa-validator
+      ref: ${{ github.repository }}
+      ssh-key: ${{ inputs.validator_key }}
+      path: validator-repo
+
+  - name: Setup environment and retrieve scripts
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      cd $GITHUB_WORKSPACE/validator-repo
+
+      # Get potential changes from main branch
+      git fetch origin
+      if [ "${{ inputs.dev }}" = true ]; then
+          echo "Merging from dev instead of main."
+          git merge origin/dev --allow-unrelated-histories -X theirs
+      else
+          git merge origin/main --allow-unrelated-histories -X theirs
+      fi
+
+      # Install requirements
+      pip install -r requirements.txt
+
+    shell: bash
+
+  - name: Upload relevant plots
+    id: upload-plots
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      cd $GITHUB_WORKSPACE/validator-repo
+
+      # Get static plot list (from input)
+      read -a plots_array_input <<< ${{ inputs.plots }}
+      # Get dynamic plot list (from comment script)
+      read -a plots_array_dynamic <<< "$(python scripts/draft_comment.py plots)"
+
+      plots_array=("${plots_array_input[@]}" "${plots_array_dynamic[@]}")
+
+      # Empty directory
+      rm -rf _validation-images
+      mkdir -p _validation-images/feature
+      mkdir -p _validation-images/main
+              
+      # Copy plots  
+      echo "Plots: ${plots_array[@]}"
+      for plotpath in "${plots_array[@]}"
+      do
+        subpath="${plotpath%/*}"
+        plot="${plotpath##*/}"
+        echo "Copying plot: ${plot} from path: ${subpath}"
+
+        # Create directories
+        mkdir -p "_validation-images/main/${subpath}"
+        mkdir -p "_validation-images/feature/${subpath}"
+
+        cp "$HOME/artifacts/results (main branch)/${PREFIX_MAIN}/${subpath}/${plot}" "_validation-images/main/${subpath}/" || true # ignore if run failed
+        cp "$HOME/artifacts/results (feature branch)/${PREFIX_FEATURE}/${subpath}/${plot}" "_validation-images/feature/${subpath}/" || true # ignore if run failed
+      done
+
+      # Add plots to repo branch
+      echo "Adding plots to repo branch"
+      git add _validation-images
+      git commit -m "[github-actions.ci] upload validation images to show in comment" || true # ignore if no changes
+      git push origin ${{ github.repository }}
+      echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+    shell: bash
+
+  - name: Setup env variables for comment
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      # This needs to be done in a separate step to ensure the output is available
+      echo "PLOTS_HASH=${{ steps.upload-plots.outputs.COMMIT_ID }}" >> $GITHUB_ENV
+      echo "PLOTS=${{ inputs.plots }}" >> $GITHUB_ENV
+
+    shell: bash
+
+  - name: Create Validator Report
+    if: ${{ inputs.step == 'create-comment' }}
+    run: |
+      cd $GITHUB_WORKSPACE/validator-repo
+
+      # Create comment
+      # Note: The script uses many env variables. See the script for more details.
+      python scripts/draft_comment.py > $GITHUB_WORKSPACE/comment.txt
+
+      cat $GITHUB_WORKSPACE/comment.txt >> $GITHUB_STEP_SUMMARY
+
+    shell: bash
+
+  - name: Retrieve or create comment
+    if: ${{ inputs.step == 'create-comment' }}
+    id: comment
+    uses: actions/github-script@v7
+    with:
+      script: |
+        const owner = context.repo.owner;
+        const repo = context.repo.repo;
+        const issue_number = context.issue.number;
+
+        // Fetching all comments of pr
+        const comments = await github.rest.issues.listComments({
+          owner,
+          repo,
+          issue_number
+        });
+
+          // Distinctive keyword present in bot's comments 
+        const distinctiveKeyword = '_val-bot-id-keyword_';
+
+        // Searching for existing comment with the distinctive keyword
+        let botsComment;
+        for (let { user, id, body } of comments.data.reverse()) {
+          if (body.includes(distinctiveKeyword)) {
+            botsComment = { id, body };
+            break;
+          }
+        }
+
+        // If found return its id
+        if (botsComment) {
+          return botsComment.id; 
+        } else {
+          // Creating a new comment if it doesn't exist yet and returning its ID.
+          const { data: newComment } = await github.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number,
+            body: `<!-- ${distinctiveKeyword} --> Initializing comment...`
+          });
+          
+          return newComment.id;
+        }
+
+  - name: Update comment
+    if: ${{ inputs.step == 'create-comment' }}
+    uses: actions/github-script@v7
+    with:
+      script: |
+        const fs = require('fs');
+        const comment = fs.readFileSync(`${process.env.GITHUB_WORKSPACE}/comment.txt`, 'utf8');
+
+        github.rest.issues.updateComment({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          comment_id: ${{ steps.comment.outputs.result }},
+          body: comment
+        });
+
