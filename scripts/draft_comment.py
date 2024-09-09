@@ -46,6 +46,17 @@ def get_env_var(var_name: str, default: Any = None) -> Any:
     return value
 
 
+def read_csv_with_encoding(file_path):
+    encodings = ["utf-8", "latin-1", "iso-8859-1", "cp1252"]
+    for encoding in encodings:
+        try:
+            return pd.read_csv(file_path, encoding=encoding)
+        except (UnicodeDecodeError, pd.errors.ParserError):
+            continue
+    msg = f"Unable to read the file {file_path.name} with any encoding."
+    raise ValueError(msg)
+
+
 @dataclass
 class CommentData:
     """Class to store data for comment generation."""
@@ -337,7 +348,7 @@ class RunSuccessfull(CommentData):
                 path_in_feature = self.dir_feature / relative_path
 
                 if path_in_main.parent.name == "csvs" and path_in_main.suffix == ".csv":
-                    df1 = pd.read_csv(path_in_main)
+                    df1 = read_csv_with_encoding(path_in_main)
                 else:
                     continue
 
@@ -345,7 +356,7 @@ class RunSuccessfull(CommentData):
                     rows[file] = [index_str, self.STATUS_FILE_MISSING, "", ""]
                     continue
                 else:
-                    df2 = pd.read_csv(path_in_feature)
+                    df2 = read_csv_with_encoding(path_in_feature)
 
                 df1 = self._format_csvs_dir_files(df1)
                 df2 = self._format_csvs_dir_files(df2)
@@ -421,7 +432,7 @@ class RunSuccessfull(CommentData):
                     path_in_feature.parent.name == "csvs"
                     and path_in_feature.suffix == ".csv"
                 ):
-                    df1 = pd.read_csv(path_in_main)
+                    df1 = read_csv_with_encoding(path_in_main)
                 else:
                     continue
 
