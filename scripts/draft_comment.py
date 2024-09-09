@@ -51,7 +51,7 @@ def read_csv_with_encoding(file_path):
     for encoding in encodings:
         try:
             return pd.read_csv(file_path, encoding=encoding)
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, pd.errors.ParserError):
             continue
     raise ValueError(f"Unable to read the file with any of the encodings: {encodings}")
 
