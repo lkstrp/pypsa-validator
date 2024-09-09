@@ -416,6 +416,7 @@ class RunSuccessfull(CommentData):
                 path_in_feature = Path(root) / file
                 relative_path = os.path.relpath(path_in_feature, self.dir_feature)
                 index_str = "../" + "/".join(str(relative_path).split("/")[1:])
+                path_in_main = self.dir_main / relative_path
 
                 if (
                     path_in_feature.parent.name == "csvs"
