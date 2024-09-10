@@ -8,13 +8,14 @@ import argparse
 
 import numpy as np
 import pandas as pd
+from numpy.typing import ArrayLike
+
 from comment_components import (
     CommentData,
     ModelMetricsComponent,
     RunFailedComponent,
     RunSuccessfullComponent,
 )
-from numpy.typing import ArrayLike
 
 
 def create_numeric_mask(arr: ArrayLike) -> np.ndarray:
