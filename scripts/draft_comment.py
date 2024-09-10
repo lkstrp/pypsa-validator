@@ -536,7 +536,7 @@ class RunFailed(CommentData):
         return self.body()
 
 
-class Benchmark(CommentData):
+class ModelMetrics(CommentData):
     """Class to generate benchmark component."""
 
     def __init__(self):
@@ -557,9 +557,9 @@ class Benchmark(CommentData):
 
     def body(self) -> str:
         return (
-            f"**Benchmarks**\n"
-            f"mem usage: bla\n"
-            f"{create_details_block('Files comparison', self.benchmark_plots)}\n"
+            f"**Model Metrics**\n"
+            # f"mem usage: bla\n"
+            f"{create_details_block('Benchmarks', self.benchmark_plots)}\n"
         )
 
     def __call__(self) -> str:
@@ -644,7 +644,7 @@ class Comment(CommentData):
 
     def __repr__(self) -> str:
         """Return full formatted comment."""
-        body_benchmarks = Benchmark()
+        body_benchmarks = ModelMetrics()
         if self.sucessfull_run:
             body_sucessfull = RunSuccessfull()
 
