@@ -144,8 +144,8 @@ runs:
     with:
       name: benchmarks
       path: |
-        ~/${{ github.repository }}/main/.snakemake/
-        ~/${{ github.repository }}/feature/logs/      
+        ~/${{ github.repository }}/main/benchmarks/
+        ~/${{ github.repository }}/feature/benchmarks/      
       retention-days: 90
       include-hidden-files: true
 
