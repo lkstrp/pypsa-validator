@@ -259,8 +259,8 @@ class RunSuccessfull(CommentData):
             url_b = self.plots_base_url + "feature/" + plot
             rows.append(
                 [
-                    f'<img src="{url_a}" alt="Error in loading image.">',
-                    f'<img src="{url_b}" alt="Error in loading image.">',
+                    f'<img src="{url_a}" alt="Image not available">',
+                    f'<img src="{url_b}" alt="Image not available">',
                 ]
             )
 
