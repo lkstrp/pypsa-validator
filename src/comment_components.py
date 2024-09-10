@@ -303,11 +303,11 @@ class RunSuccessfullComponent(CommentData):
 
         # Make non-numeric values the index
         non_numeric = df.apply(
-            lambda col: pd.to_numeric(col, errors="coerce").isna().all()
+            lambda col: pd.to_numeric(col, errors="coerce").isna().all()  # type: ignore
         )
 
         if non_numeric.any():
-            df = df.set_index(df.columns[non_numeric].to_list())
+            df = df.set_index(df.columns[non_numeric].to_list())  # type: ignore
         else:
             df = df.set_index("planning_horizon")
 
