@@ -138,7 +138,7 @@ runs:
       retention-days: 90
       include-hidden-files: true
 
-  - name: Upload benchmarks
+  - name: Upload artifacts (benchmarks)
     if: ${{ inputs.step == 'run-self-hosted-validation' }}
     uses: actions/upload-artifact@v4
     with:
@@ -149,22 +149,13 @@ runs:
       retention-days: 90
       include-hidden-files: true
 
-  - name: Upload artifacts (results main)
+  - name: Upload artifacts (results)
     if: ${{ inputs.step == 'run-self-hosted-validation' }}
     uses: actions/upload-artifact@v4
     with:
-      name: results (main branch)
+      name: results
       path: |
         ~/${{ github.repository }}/main/results
-      retention-days: 90
-      include-hidden-files: true
-      
-  - name: Upload artifacts (results feature)
-    if: ${{ inputs.step == 'run-self-hosted-validation' }}
-    uses: actions/upload-artifact@v4
-    with:
-      name: results (feature branch)
-      path: |
         ~/${{ github.repository }}/feature/results
       retention-days: 90
       include-hidden-files: true
