@@ -21,15 +21,15 @@ def min_max_normalized_mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
     float: Min-max normalized MAE
 
     """
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
+    y_true_ = np.array(y_true)
+    y_pred_ = np.array(y_pred)
 
     # Ignore -inf and inf values in y_true
-    y_true = y_true[np.isfinite(y_true)]
-    y_pred = y_pred[np.isfinite(y_pred)]
+    y_true_ = y_true_[np.isfinite(y_true_)]
+    y_pred_ = y_pred_[np.isfinite(y_pred_)]
 
     # Calculate the absolute errors
-    abs_errors = np.abs(y_true - y_pred)
+    abs_errors = np.abs(y_true_ - y_pred_)
 
     # Check if all errors are the same
     if np.all(abs_errors == abs_errors[0]):
@@ -72,19 +72,19 @@ def mean_absolute_percentage_error(
     float: MAPE
 
     """
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
+    y_true_ = np.array(y_true)
+    y_pred_ = np.array(y_pred)
 
     # Ignore -inf and inf values
     if ignore_inf:
-        y_true = y_true[np.isfinite(y_true)]
-        y_pred = y_pred[np.isfinite(y_pred)]
+        y_true_ = y_true_[np.isfinite(y_true)]
+        y_pred_ = y_pred_[np.isfinite(y_pred)]
 
     # Avoid division by zero
-    y_pred = y_pred + epsilon
+    y_pred_ = y_pred_ + epsilon
 
     # Calculate the absolute percentage errors
-    mape = np.abs((y_true - y_pred) / y_true)
+    mape = np.abs((y_true_ - y_pred_) / y_true_)
 
     if aggregate:
         mape = np.mean(mape)
