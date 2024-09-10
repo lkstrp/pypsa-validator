@@ -152,6 +152,7 @@ class RunSuccessfull(CommentData):
 
     def __init__(self):
         """Initialize class."""
+        super().__init__()
         self.dir_main = [
             file
             for file in (self.dir_artifacts / "results/main/results").iterdir()
@@ -501,6 +502,9 @@ class RunSuccessfull(CommentData):
 class RunFailed(CommentData):
     """Class to generate failed run component."""
 
+    def __init__(self):
+        super().__init__()
+
     def body(self) -> str:
         """Body text for failed run."""
         main_errors = self.errors("main")
@@ -535,6 +539,9 @@ class RunFailed(CommentData):
 class Benchmark(CommentData):
     """Class to generate benchmark component."""
 
+    def __init__(self):
+        super().__init__()
+
     @property
     def benchmark_plots(self) -> str:
         """Benchmark plots."""
@@ -562,6 +569,9 @@ class Benchmark(CommentData):
 
 class Comment(CommentData):
     """Class to generate pypsa validator comment for GitHub PRs."""
+
+    def __init__(self):
+        super().__init__()
 
     @property
     def header(self) -> str:
