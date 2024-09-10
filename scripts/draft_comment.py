@@ -145,21 +145,23 @@ class RunSuccessfull(CommentData):
         """Initialize class."""
         self.dir_main = [
             file
-            for file in (self.dir_artifacts / "results (main branch)").iterdir()
+            for file in (self.dir_artifacts / "results/main/results").iterdir()
             if file.is_dir()
         ]
         if len(self.dir_main) != 1:
-            msg = "Expected exactly one directory in 'results (main branch)'."
+            msg = "Expected exactly one directory (prefix) in 'results/main/results'."
             raise ValueError(msg)
         self.dir_main = self.dir_main[0]
 
         self.dir_feature = [
             file
-            for file in (self.dir_artifacts / "results (feature branch)").iterdir()
+            for file in (self.dir_artifacts / "results/feature/results").iterdir()
             if file.is_dir()
         ]
         if len(self.dir_feature) != 1:
-            msg = "Expected exactly one directory in 'results (feature branch)'."
+            msg = (
+                "Expected exactly one directory (prefix) in 'results/feature/results'."
+            )
             raise ValueError(msg)
         self.dir_feature = self.dir_feature[0]
 
@@ -257,8 +259,8 @@ class RunSuccessfull(CommentData):
             url_b = self.plots_base_url + "feature/" + plot
             rows.append(
                 [
-                    f'<img src="{url_a}" alt="Error in loading image.">',
-                    f'<img src="{url_b}" alt="Error in loading image.">',
+                    f'<img src="{url_a}" alt="Image not available">',
+                    f'<img src="{url_b}" alt="Image not available">',
                 ]
             )
 

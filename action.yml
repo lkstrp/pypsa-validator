@@ -138,33 +138,24 @@ runs:
       retention-days: 90
       include-hidden-files: true
 
-  - name: Upload benchmarks
+  - name: Upload artifacts (benchmarks)
     if: ${{ inputs.step == 'run-self-hosted-validation' }}
     uses: actions/upload-artifact@v4
     with:
       name: benchmarks
       path: |
-        ~/${{ github.repository }}/main/.snakemake/
-        ~/${{ github.repository }}/feature/logs/      
+        ~/${{ github.repository }}/main/benchmarks/
+        ~/${{ github.repository }}/feature/benchmarks/      
       retention-days: 90
       include-hidden-files: true
 
-  - name: Upload artifacts (results main)
+  - name: Upload artifacts (results)
     if: ${{ inputs.step == 'run-self-hosted-validation' }}
     uses: actions/upload-artifact@v4
     with:
-      name: results (main branch)
+      name: results
       path: |
         ~/${{ github.repository }}/main/results
-      retention-days: 90
-      include-hidden-files: true
-      
-  - name: Upload artifacts (results feature)
-    if: ${{ inputs.step == 'run-self-hosted-validation' }}
-    uses: actions/upload-artifact@v4
-    with:
-      name: results (feature branch)
-      path: |
         ~/${{ github.repository }}/feature/results
       retention-days: 90
       include-hidden-files: true
@@ -320,8 +311,8 @@ runs:
         mkdir -p "_validation-images/main/${subpath}"
         mkdir -p "_validation-images/feature/${subpath}"
 
-        cp "$HOME/artifacts/results (main branch)/${PREFIX_MAIN}/${subpath}/${plot}" "_validation-images/main/${subpath}/" || true # ignore if run failed
-        cp "$HOME/artifacts/results (feature branch)/${PREFIX_FEATURE}/${subpath}/${plot}" "_validation-images/feature/${subpath}/" || true # ignore if run failed
+        cp "$HOME/artifacts/results/main/results/${PREFIX_MAIN}/${subpath}/${plot}" "_validation-images/main/${subpath}/" || true # ignore if run failed
+        cp "$HOME/artifacts/results/feature/results/${PREFIX_FEATURE}/${subpath}/${plot}" "_validation-images/feature/${subpath}/" || true # ignore if run failed
       done
 
       # Add plots to repo branch
