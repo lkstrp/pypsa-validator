@@ -474,11 +474,29 @@ class RunSuccessfull(CommentData):
             else:
                 return ""
 
+        if self.variables_comparison and self.changed_variables_plots:
+            if self.variables_deviation_df.empty:
+                variables_txt = (
+                    "**Ariadne Variables**\n"
+                    "No significant changes in variables detected. :white_check_mark:"
+                )
+            else:
+                variables_txt = (
+                    f"**Ariadne Variables**\n"
+                    f"{create_details_block('Comparison', self.variables_comparison)}"
+                    f"{create_details_block('Plots', self.changed_variables_plots)}"
+                )
+        elif self.variables_comparison or self.changed_variables_plots:
+            raise ValueError(
+                "Both variables_comparison and changed_variables_plots must be set or unset."
+            )
+        else:
+            variables_txt = ""
         return (
-            f"{create_details_block('Variables comparison', self.variables_comparison)}"
-            f"{create_details_block('Variables changed plots', self.changed_variables_plots)}"
-            f"{create_details_block('General Plots comparison', self.plots_table)}"
-            f"{create_details_block('General Files comparison', self.files_table)}"
+            f"{variables_txt}"
+            f"**General**\n"
+            f"{create_details_block('Plots comparison', self.plots_table)}"
+            f"{create_details_block('Files comparison', self.files_table)}"
         )
 
     def __call__(self) -> str:
