@@ -327,8 +327,8 @@ runs:
         # Create directories
         mkdir -p "_validation-images/benchmarks
 
-        cp "$HOME/${plot}" "_validation-images/benchmarks" || true # ignore if run failed
-        cp "$HOME/${plot}" "_validation-images/benchmarks" || true # ignore if run failed
+        cp "${plot}" "_validation-images/benchmarks" || true # ignore if run failed
+        cp "${plot}" "_validation-images/benchmarks" || true # ignore if run failed
       done
 
       # Add plots to repo branch
