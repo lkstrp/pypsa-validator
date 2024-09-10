@@ -119,10 +119,10 @@ runs:
       --config_file ${{ inputs.snakemake_config }} \
       --main_command "${{ inputs.main_command }}" \
       --pre_command "${{ inputs.pre_command }}" 
-      
+
 
     shell: bash
-  
+
   - name: Upload artifacts (logs)
     if: ${{ inputs.step == 'run-self-hosted-validation' }}
     uses: actions/upload-artifact@v4
@@ -300,7 +300,6 @@ runs:
       mkdir -p _validation-images/main
               
       # Copy plots  
-      echo "Plots: ${plots_array[@]}"
       for plotpath in "${plots_array[@]}"
       do
         subpath="${plotpath%/*}"
@@ -313,6 +312,25 @@ runs:
 
         cp "$HOME/artifacts/results/main/results/${PREFIX_MAIN}/${subpath}/${plot}" "_validation-images/main/${subpath}/" || true # ignore if run failed
         cp "$HOME/artifacts/results/feature/results/${PREFIX_FEATURE}/${subpath}/${plot}" "_validation-images/feature/${subpath}/" || true # ignore if run failed
+      done
+
+      # Get benchmark plot list (from benchmark script)
+      read -a plots_array_benchmark <<< "$(python scripts/plot_benchmarks.py)"
+
+      mkdir -p _validation-images/benchmarks
+
+      # Copy benchmark plots
+      for plotpath in "${plots_array_benchmark[@]}"
+      do
+        subpath="${plotpath%/*}"
+        plot="${plotpath##*/}"
+        echo "Copying benchmark plot: ${plot} from path: ${subpath}"
+
+        # Create directories
+        mkdir -p "_validation-images/benchmarks/${subpath}"
+
+        cp "$HOME/${subpath}/${plot}" "_validation-images/benchmarks/${subpath}/" || true # ignore if run failed
+        cp "$HOME/${subpath}/${plot}" "_validation-images/benchmarks/${subpath}/" || true # ignore if run failed
       done
 
       # Add plots to repo branch
