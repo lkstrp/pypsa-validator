@@ -478,7 +478,8 @@ class RunSuccessfull(CommentData):
             if self.variables_deviation_df.empty:
                 variables_txt = (
                     "**Ariadne Variables**\n"
-                    "No significant changes in variables detected. :white_check_mark:"
+                    "No significant changes in variables detected. :white_check_mark:\n"
+                    "\n\n"
                 )
             else:
                 variables_txt = (
