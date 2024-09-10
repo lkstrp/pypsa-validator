@@ -59,6 +59,7 @@ class CommentData:
     _sucessfull_run = None
 
     def __init__(self):
+        """Initialize comment data class."""
         self.plots_base_url = (
             f"https://raw.githubusercontent.com/lkstrp/"
             f"pypsa-validator/{self.plots_hash}/_validation-images/"
@@ -110,6 +111,7 @@ class CommentData:
 
 
 def get_deviation_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    """Calculate deviation dataframe between two dataframes."""
     nrmse_series = df1.apply(
         lambda row: normalized_root_mean_square_error(
             row.values,
@@ -134,6 +136,7 @@ def get_deviation_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
 
 
 def create_details_block(summary: str, content: str) -> str:
+    """Wrap content in a details block (if content is not empty)."""
     if content:
         return (
             f"<details>\n"
@@ -151,7 +154,7 @@ class RunSuccessfull(CommentData):
     """Class to generate successfull run component."""
 
     def __init__(self):
-        """Initialize class."""
+        """Initialize successfull run component."""
         super().__init__()
         self.dir_main = [
             file
@@ -199,6 +202,7 @@ class RunSuccessfull(CommentData):
 
     @property
     def variables_deviation_df(self):
+        """Get the deviation dataframe for variables."""
         if self._variables_deviation_df is not None:
             return self._variables_deviation_df
         vars1 = pd.read_excel(self.dir_main / self.VARIABLES_FILE)
@@ -224,6 +228,7 @@ class RunSuccessfull(CommentData):
 
     @property
     def variables_plot_strings(self):
+        """Return list of variable plot strings."""
         plots = (
             self.variables_deviation_df.index.to_series()
             .apply(lambda x: re.sub(r"[ |/]", "-", x))
@@ -234,6 +239,7 @@ class RunSuccessfull(CommentData):
 
     @property
     def variables_comparison(self) -> str:
+        """Return variables comparison table."""
         if (
             not (self.dir_main / self.VARIABLES_FILE).exists()
             or not (self.dir_feature / self.VARIABLES_FILE).exists()
@@ -255,6 +261,7 @@ class RunSuccessfull(CommentData):
 
     @property
     def changed_variables_plots(self) -> str:
+        """Return plots for variables that have changed significantly."""
         if (
             not (self.dir_main / self.VARIABLES_FILE).exists()
             or not (self.dir_feature / self.VARIABLES_FILE).exists()
@@ -483,7 +490,8 @@ class RunSuccessfull(CommentData):
                 )
         elif self.variables_comparison or self.changed_variables_plots:
             raise ValueError(
-                "Both variables_comparison and changed_variables_plots must be set or unset."
+                "Both variables_comparison and changed_variables_plots must be set or "
+                "unset."
             )
         else:
             variables_txt = ""
@@ -503,6 +511,7 @@ class RunFailed(CommentData):
     """Class to generate failed run component."""
 
     def __init__(self):
+        """Initialize failed run component."""
         super().__init__()
 
     def body(self) -> str:
@@ -537,9 +546,10 @@ class RunFailed(CommentData):
 
 
 class ModelMetrics(CommentData):
-    """Class to generate benchmark component."""
+    """Class to generate model metrics component."""
 
     def __init__(self):
+        """Initialize model metrics component."""
         super().__init__()
 
     @property
@@ -556,21 +566,22 @@ class ModelMetrics(CommentData):
         )
 
     def body(self) -> str:
+        """Body text for Model Metrics."""
         return (
             f"**Model Metrics**\n"
-            # f"mem usage: bla\n"
             f"{create_details_block('Benchmarks', self.benchmark_plots)}\n"
         )
 
     def __call__(self) -> str:
-        """Return text for benchmark component."""
+        """Return text for model metrics component."""
         return self.body()
 
 
 class Comment(CommentData):
     """Class to generate pypsa validator comment for GitHub PRs."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize comment class. It will put all text components together."""
         super().__init__()
 
     @property
@@ -634,7 +645,15 @@ class Comment(CommentData):
             f"Last updated on `{time}`."
         )
 
-    def needed_plots(self):
+    def dynamic_plots(self) -> str:
+        """
+        Return a list of dynamic results plots needed for the comment.
+
+        Returns
+        -------
+            str: Space separated list of dynamic plots.
+
+        """
         if self.sucessfull_run:
             body_sucessfull = RunSuccessfull()
             plots_string = " ".join(body_sucessfull.variables_plot_strings)
@@ -669,6 +688,13 @@ class Comment(CommentData):
 
 
 def main():
+    """
+    Run draft comment script.
+
+    Command line interface for the draft comment script. Use no arguments to print the
+    comment, or use the "plots" argument to print the dynamic plots which will be needed
+    for the comment.
+    """
     parser = argparse.ArgumentParser(description="Process some comments.")
     parser.add_argument(
         "command", nargs="?", default="", help='Command to run, e.g., "plots".'
@@ -678,7 +704,7 @@ def main():
     comment = Comment()
 
     if args.command == "plots":
-        print(comment.needed_plots())
+        print(comment.dynamic_plots())
 
     else:
         print(comment)  # noqa T201

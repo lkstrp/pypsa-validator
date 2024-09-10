@@ -1,6 +1,4 @@
-"""
-Helper module for calculating evaluation metrics.
-"""
+"""Helper module for calculating evaluation metrics."""
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -64,6 +62,10 @@ def mean_absolute_percentage_error(
         Predicted values
     epsilon : float, optional (default=1e-9)
         Small value to avoid division by zero
+    aggregate : bool, optional (default=True)
+        If True, return the mean MAPE. Otherwise, return an array of individual MAPEs
+    ignore_inf : bool, optional (default=True)
+        If True, ignore infinite values in the calculation
 
     Returns
     -------
@@ -111,6 +113,8 @@ def normalized_root_mean_square_error(
         If True, ignore infinite values in the calculation
     normalization : str, optional (default='min-max')
         Method of normalization. Options: 'mean', 'range', 'iqr', 'min-max'
+    fill_na : float, optional (default=0)
+        Value to replace NaN values
     epsilon : float, optional (default=1e-9)
         Small value to add to normalization factor to avoid division by zero
 

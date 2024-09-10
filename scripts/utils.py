@@ -1,5 +1,7 @@
-from typing import Any
+"""Utility functions for the pypsa validator python scripts."""
+
 import os
+from typing import Any
 
 
 def get_env_var(var_name: str, default: Any = None) -> Any:
