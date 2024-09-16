@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+
 from utils import get_env_var
 
 DIR_ARTIFACTS: Path = Path(
@@ -79,7 +80,7 @@ def create_bar_chart_comparison(
     xlabel: str,
     filename: str,
     ignore_stacked_plot: bool = False,
-):
+) -> str:
     """
     Create a horizontal bar chart comparing execution time or memory peak.
 
@@ -188,7 +189,7 @@ def create_bar_chart_comparison(
     return filename
 
 
-def create_scatter_memory(df: pd.DataFrame, filename: str) -> None:
+def create_scatter_memory(df: pd.DataFrame, filename: str) -> str:
     """
     Create a scatter plot of max_rss vs max_uss.
 
