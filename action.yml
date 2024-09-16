@@ -290,7 +290,7 @@ runs:
       # Get static plot list (from input)
       read -a plots_array_input <<< ${{ inputs.plots }}
       # Get dynamic plot list (from comment script)
-      read -a plots_array_dynamic <<< "$(python src/draft_comment.py plots)"
+      read -a plots_array_dynamic <<< "$(python scripts/draft_comment.py plots)"
 
       plots_array=("${plots_array_input[@]}" "${plots_array_dynamic[@]}")
 
@@ -315,7 +315,7 @@ runs:
       done
 
       # Get benchmark plot list (from benchmark script)
-      read -a plots_array_benchmark <<< "$(python src/plot_benchmarks.py)"
+      read -a plots_array_benchmark <<< "$(python scripts/plot_benchmarks.py)"
 
       mkdir -p _validation-images/benchmarks
 
@@ -356,7 +356,7 @@ runs:
 
       # Create comment
       # Note: The script uses many env variables. See the script for more details.
-      python src/draft_comment.py > $GITHUB_WORKSPACE/comment.txt
+      python scripts/draft_comment.py > $GITHUB_WORKSPACE/comment.txt
 
       cat $GITHUB_WORKSPACE/comment.txt >> $GITHUB_STEP_SUMMARY
 

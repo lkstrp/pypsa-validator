@@ -9,12 +9,12 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
 from metrics import min_max_normalized_mae, normalized_root_mean_square_error
 from numpy.typing import ArrayLike
+from utils import get_env_var
 
 
 def create_numeric_mask(arr: ArrayLike) -> np.ndarray:
@@ -33,17 +33,6 @@ def create_numeric_mask(arr: ArrayLike) -> np.ndarray:
     """
     arr = np.array(arr)
     return np.vectorize(lambda x: isinstance(x, (int, float)) and np.isfinite(x))(arr)
-
-
-def get_env_var(var_name: str, default: Any = None) -> Any:
-    """Get environment variable or raise an error if not set and no default provided."""
-    value = os.getenv(var_name, default)
-    if value == "" and default is None:
-        msg = f"The environment variable '{var_name}' is not set."
-        raise OSError(msg)
-    if str(value).lower() in ["true", "false"]:
-        return str(value).lower() == "true"
-    return value
 
 
 @dataclass
@@ -68,6 +57,13 @@ class CommentData:
     plots_string: str = get_env_var("PLOTS", "")
 
     _sucessfull_run = None
+
+    def __init__(self):
+        """Initialize comment data class."""
+        self.plots_base_url = (
+            f"https://raw.githubusercontent.com/lkstrp/"
+            f"pypsa-validator/{self.plots_hash}/_validation-images/"
+        )
 
     def errors(self, branch_type: str) -> list:
         """Return errors for branch type."""
@@ -115,6 +111,7 @@ class CommentData:
 
 
 def get_deviation_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    """Calculate deviation dataframe between two dataframes."""
     nrmse_series = df1.apply(
         lambda row: normalized_root_mean_square_error(
             row.values,
@@ -138,28 +135,46 @@ def get_deviation_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
         return deviation_df
 
 
+def create_details_block(summary: str, content: str) -> str:
+    """Wrap content in a details block (if content is not empty)."""
+    if content:
+        return (
+            f"<details>\n"
+            f"    <summary>{summary}</summary>\n"
+            f"{content}"
+            f"</details>\n"
+            f"\n"
+            f"\n"
+        )
+    else:
+        return ""
+
+
 class RunSuccessfull(CommentData):
     """Class to generate successfull run component."""
 
     def __init__(self):
-        """Initialize class."""
+        """Initialize successfull run component."""
+        super().__init__()
         self.dir_main = [
             file
-            for file in (self.dir_artifacts / "results (main branch)").iterdir()
+            for file in (self.dir_artifacts / "results/main/results").iterdir()
             if file.is_dir()
         ]
         if len(self.dir_main) != 1:
-            msg = "Expected exactly one directory in 'results (main branch)'."
+            msg = "Expected exactly one directory (prefix) in 'results/main/results'."
             raise ValueError(msg)
         self.dir_main = self.dir_main[0]
 
         self.dir_feature = [
             file
-            for file in (self.dir_artifacts / "results (feature branch)").iterdir()
+            for file in (self.dir_artifacts / "results/feature/results").iterdir()
             if file.is_dir()
         ]
         if len(self.dir_feature) != 1:
-            msg = "Expected exactly one directory in 'results (feature branch)'."
+            msg = (
+                "Expected exactly one directory (prefix) in 'results/feature/results'."
+            )
             raise ValueError(msg)
         self.dir_feature = self.dir_feature[0]
 
@@ -170,8 +185,6 @@ class RunSuccessfull(CommentData):
         ]
 
         self._variables_deviation_df = None
-
-        self.plots_base_url = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{self.plots_hash}/_validation-images/"
 
     # Status strings for file comparison table
     STATUS_FILE_MISSING = " :warning: Missing"
@@ -189,6 +202,7 @@ class RunSuccessfull(CommentData):
 
     @property
     def variables_deviation_df(self):
+        """Get the deviation dataframe for variables."""
         if self._variables_deviation_df is not None:
             return self._variables_deviation_df
         vars1 = pd.read_excel(self.dir_main / self.VARIABLES_FILE)
@@ -214,6 +228,7 @@ class RunSuccessfull(CommentData):
 
     @property
     def variables_plot_strings(self):
+        """Return list of variable plot strings."""
         plots = (
             self.variables_deviation_df.index.to_series()
             .apply(lambda x: re.sub(r"[ |/]", "-", x))
@@ -224,6 +239,7 @@ class RunSuccessfull(CommentData):
 
     @property
     def variables_comparison(self) -> str:
+        """Return variables comparison table."""
         if (
             not (self.dir_main / self.VARIABLES_FILE).exists()
             or not (self.dir_feature / self.VARIABLES_FILE).exists()
@@ -245,6 +261,7 @@ class RunSuccessfull(CommentData):
 
     @property
     def changed_variables_plots(self) -> str:
+        """Return plots for variables that have changed significantly."""
         if (
             not (self.dir_main / self.VARIABLES_FILE).exists()
             or not (self.dir_feature / self.VARIABLES_FILE).exists()
@@ -257,8 +274,8 @@ class RunSuccessfull(CommentData):
             url_b = self.plots_base_url + "feature/" + plot
             rows.append(
                 [
-                    f'<img src="{url_a}" alt="Error in loading image.">',
-                    f'<img src="{url_b}" alt="Error in loading image.">',
+                    f'<img src="{url_a}" alt="Image not available">',
+                    f'<img src="{url_b}" alt="Image not available">',
                 ]
             )
 
@@ -277,8 +294,8 @@ class RunSuccessfull(CommentData):
             url_b = self.plots_base_url + "feature/" + plot
             rows.append(
                 [
-                    f'<img src="{url_a}" alt="Image not found in results">',
-                    f'<img src="{url_b}" alt="Image not found in results">',
+                    f'<img src="{url_a}" alt="Image not available">',
+                    f'<img src="{url_b}" alt="Image not available">',
                 ]
             )
 
@@ -458,25 +475,31 @@ class RunSuccessfull(CommentData):
     @property
     def body(self) -> str:
         """Body text for successfull run."""
-
-        def create_details_block(summary: str, content: str) -> str:
-            if content:
-                return (
-                    f"<details>\n"
-                    f"    <summary>{summary}</summary>\n"
-                    f"{content}"
-                    f"</details>\n"
-                    f"\n"
-                    f"\n"
+        if self.variables_comparison and self.changed_variables_plots:
+            if self.variables_deviation_df.empty:
+                variables_txt = (
+                    "**Ariadne Variables**\n"
+                    "No significant changes in variables detected. :white_check_mark:\n"
+                    "\n\n"
                 )
             else:
-                return ""
-
+                variables_txt = (
+                    f"**Ariadne Variables**\n"
+                    f"{create_details_block('Comparison', self.variables_comparison)}"
+                    f"{create_details_block('Plots', self.changed_variables_plots)}"
+                )
+        elif self.variables_comparison or self.changed_variables_plots:
+            raise ValueError(
+                "Both variables_comparison and changed_variables_plots must be set or "
+                "unset."
+            )
+        else:
+            variables_txt = ""
         return (
-            f"{create_details_block('Variables comparison', self.variables_comparison)}"
-            f"{create_details_block('Variables changed plots', self.changed_variables_plots)}"
-            f"{create_details_block('General Plots comparison', self.plots_table)}"
-            f"{create_details_block('General Files comparison', self.files_table)}"
+            f"{variables_txt}"
+            f"**General**\n"
+            f"{create_details_block('Plots comparison', self.plots_table)}"
+            f"{create_details_block('Files comparison', self.files_table)}"
         )
 
     def __call__(self) -> str:
@@ -486,6 +509,10 @@ class RunSuccessfull(CommentData):
 
 class RunFailed(CommentData):
     """Class to generate failed run component."""
+
+    def __init__(self):
+        """Initialize failed run component."""
+        super().__init__()
 
     def body(self) -> str:
         """Body text for failed run."""
@@ -518,8 +545,44 @@ class RunFailed(CommentData):
         return self.body()
 
 
+class ModelMetrics(CommentData):
+    """Class to generate model metrics component."""
+
+    def __init__(self):
+        """Initialize model metrics component."""
+        super().__init__()
+
+    @property
+    def benchmark_plots(self) -> str:
+        """Benchmark plots."""
+        "execution_time.png", "memory_peak.png", "memory_scatter.png"
+        return (
+            f'<img src="{self.plots_base_url}benchmarks/execution_time.png" '
+            'alt="Image not available">\n'
+            f'<img src="{self.plots_base_url}benchmarks/memory_peak.png" '
+            'alt="Image not available">\n'
+            f'<img src="{self.plots_base_url}benchmarks/memory_scatter.png" '
+            'alt="Image not available">\n'
+        )
+
+    def body(self) -> str:
+        """Body text for Model Metrics."""
+        return (
+            f"**Model Metrics**\n"
+            f"{create_details_block('Benchmarks', self.benchmark_plots)}\n"
+        )
+
+    def __call__(self) -> str:
+        """Return text for model metrics component."""
+        return self.body()
+
+
 class Comment(CommentData):
     """Class to generate pypsa validator comment for GitHub PRs."""
+
+    def __init__(self) -> None:
+        """Initialize comment class. It will put all text components together."""
+        super().__init__()
 
     @property
     def header(self) -> str:
@@ -582,7 +645,15 @@ class Comment(CommentData):
             f"Last updated on `{time}`."
         )
 
-    def needed_plots(self):
+    def dynamic_plots(self) -> str:
+        """
+        Return a list of dynamic results plots needed for the comment.
+
+        Returns
+        -------
+            str: Space separated list of dynamic plots.
+
+        """
         if self.sucessfull_run:
             body_sucessfull = RunSuccessfull()
             plots_string = " ".join(body_sucessfull.variables_plot_strings)
@@ -592,6 +663,7 @@ class Comment(CommentData):
 
     def __repr__(self) -> str:
         """Return full formatted comment."""
+        body_benchmarks = ModelMetrics()
         if self.sucessfull_run:
             body_sucessfull = RunSuccessfull()
 
@@ -599,6 +671,7 @@ class Comment(CommentData):
                 f"{self.header}"
                 f"{self.config_diff if self.git_diff_config else ''}"
                 f"{body_sucessfull()}"
+                f"{body_benchmarks()}"
                 f"{self.subtext}"
             )
 
@@ -609,11 +682,19 @@ class Comment(CommentData):
                 f"{self.header}"
                 f"{body_failed()}"
                 f"{self.config_diff if self.git_diff_config else ''}"
+                f"{body_benchmarks()}"
                 f"{self.subtext}"
             )
 
 
 def main():
+    """
+    Run draft comment script.
+
+    Command line interface for the draft comment script. Use no arguments to print the
+    comment, or use the "plots" argument to print the dynamic plots which will be needed
+    for the comment.
+    """
     parser = argparse.ArgumentParser(description="Process some comments.")
     parser.add_argument(
         "command", nargs="?", default="", help='Command to run, e.g., "plots".'
@@ -623,7 +704,7 @@ def main():
     comment = Comment()
 
     if args.command == "plots":
-        print(comment.needed_plots())
+        print(comment.dynamic_plots())
 
     else:
         print(comment)  # noqa T201
