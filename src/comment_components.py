@@ -51,12 +51,15 @@ class CommentData:
         logs = list(
             Path(f"{self.dir_artifacts}/logs/{branch_type}/.snakemake/log/").glob("*")
         )
-        if len(logs) != 1:
+        if len(logs) > 1:
             msg = (
-                "Expected exactly one log file in snakemake/log directory "
-                "({branch_type} branch)."
+                "Expected exactly one log fiie in snakemake/log directory "
+                f"({branch_type} branch). Found {len(logs)}."
             )
             raise ValueError(msg)
+        elif len(logs) == 0:
+            inpt_erros = ['no_logs_found']
+            return inpt_erros
 
         with logs[0].open() as file:
             log = file.read()
