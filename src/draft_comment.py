@@ -12,9 +12,10 @@ from numpy.typing import ArrayLike
 
 from comment_components import (
     CommentData,
-    ModelMetricsComponent,
-    RunFailedComponent,
-    RunSuccessfullComponent,
+    ModelMetrics,
+    RunFailed,
+    RunSuccessfull,
+    _Variables,
 )
 
 
@@ -114,17 +115,17 @@ class Comment(CommentData):
 
         """
         if self.sucessfull_run:
-            body_sucessfull = RunSuccessfullComponent()
-            plots_string = " ".join(body_sucessfull.variables_plot_strings)
+            variables = _Variables()
+            plots_string = " ".join(variables.variables_plot_strings())
             return plots_string
         else:
             return ""
 
     def __repr__(self) -> str:
         """Return full formatted comment."""
-        body_benchmarks = ModelMetricsComponent()
+        body_benchmarks = ModelMetrics()
         if self.sucessfull_run:
-            body_sucessfull = RunSuccessfullComponent()
+            body_sucessfull = RunSuccessfull()
 
             return (
                 f"{self.header}"
@@ -135,7 +136,7 @@ class Comment(CommentData):
             )
 
         else:
-            body_failed = RunFailedComponent()
+            body_failed = RunFailed()
 
             return (
                 f"{self.header}"
