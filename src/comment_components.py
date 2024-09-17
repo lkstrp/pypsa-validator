@@ -4,6 +4,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -32,15 +33,9 @@ class CommentData:
     # For RunSuccessfull body
     plots_hash: str = get_env_var("PLOTS_HASH", "")
     plots_string: str = get_env_var("PLOTS", "")
+    plots_base_url: str = f"https://raw.githubusercontent.com/lkstrp/pypsa-validator/{plots_hash}/_validation-images/"
 
     _sucessfull_run = None
-
-    def __init__(self):
-        """Initialize comment data class."""
-        self.plots_base_url = (
-            f"https://raw.githubusercontent.com/lkstrp/"
-            f"pypsa-validator/{self.plots_hash}/_validation-images/"
-        )
 
     def errors(self, branch_type: str) -> list:
         """Return errors for branch type."""
@@ -58,7 +53,7 @@ class CommentData:
             )
             raise ValueError(msg)
         elif len(logs) == 0:
-            inpt_erros = ['no_logs_found']
+            inpt_erros = ["no_logs_found"]
             return inpt_erros
 
         with logs[0].open() as file:
@@ -89,33 +84,56 @@ class CommentData:
             )
         return self._sucessfull_run
 
+    @property
+    def dir_main(self) -> Path:
+        """Get path to main branch results directory."""
+        if self.sucessfull_run:
+            dir_main = [
+                file
+                for file in (self.dir_artifacts / "results/main/results").iterdir()
+                if file.is_dir()
+            ]
+            if len(dir_main) != 1:
+                msg = "Expected exactly one directory (prefix) in results dir (main)."
+                raise ValueError(msg)
+            return dir_main[0]
+        else:
+            msg = "Should not be called if run was not successfull."
+            raise ValueError(msg)
 
-def get_deviation_df(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
-    """Calculate deviation dataframe between two dataframes."""
-    nrmse_series = df1.apply(
-        lambda row: normalized_root_mean_square_error(
-            row.values,
-            df2.loc[row.name].values,
-            normalization="min-max",
-        ),
-        axis=1,
-    )
-    pearson_series = df1.apply(
-        lambda row: np.corrcoef(row.values, df2.loc[row.name].values)[0, 1],
-        axis=1,
-    ).fillna(0)
+    @property
+    def dir_feature(self) -> Path:
+        """Get path to feature branch results directory."""
+        if self.sucessfull_run:
+            dir_feature = [
+                file
+                for file in (self.dir_artifacts / "results/feature/results").iterdir()
+                if file.is_dir()
+            ]
+            if len(dir_feature) != 1:
+                msg = "Expected exactly one directory (prefix) results dir (feature)."
+                raise ValueError(msg)
+            return dir_feature[0]
+        else:
+            msg = "Should not be called if run was not successfull."
+            raise ValueError(msg)
 
-    if df1.empty:
-        return pd.DataFrame(columns=["NRMSE", "Pearson"])
-    else:
-        deviation_df = pd.DataFrame(
-            {"NRMSE": nrmse_series, "Pearson": pearson_series}
-        ).sort_values(by="NRMSE", ascending=False)
+    @property
+    def plots_list(self) -> list:
+        """Return list of plots."""
+        if self.sucessfull_run:
+            plots_list = [
+                plot
+                for plot in self.plots_string.split(" ")
+                if plot.split(".")[-1] in ["png", "jpg", "jpeg", "svg"]
+            ]
+            return plots_list
+        else:
+            msg = "Should not be called if run was not successfull."
+            raise ValueError(msg)
 
-        return deviation_df
 
-
-def create_details_block(summary: str, content: str) -> str:
+def create_details_block(summary: str, content: Any) -> str:
     """Wrap content in a details block (if content is not empty)."""
     if content:
         return (
@@ -130,58 +148,49 @@ def create_details_block(summary: str, content: str) -> str:
         return ""
 
 
-class RunSuccessfullComponent(CommentData):
-    """Class to generate successfull run component."""
+class _Variables(CommentData):
+    """
+    Class to generate the Variables component (ariadne only).
 
-    def __init__(self):
-        """Initialize successfull run component."""
-        super().__init__()
-        self.dir_main = [
-            file
-            for file in (self.dir_artifacts / "results/main/results").iterdir()
-            if file.is_dir()
-        ]
-        if len(self.dir_main) != 1:
-            msg = "Expected exactly one directory (prefix) in 'results/main/results'."
-            raise ValueError(msg)
-        self.dir_main = self.dir_main[0]
+    Part of RunSuccessfullComponent.
 
-        self.dir_feature = [
-            file
-            for file in (self.dir_artifacts / "results/feature/results").iterdir()
-            if file.is_dir()
-        ]
-        if len(self.dir_feature) != 1:
-            msg = (
-                "Expected exactly one directory (prefix) in 'results/feature/results'."
-            )
-            raise ValueError(msg)
-        self.dir_feature = self.dir_feature[0]
-
-        self.plots_list = [
-            plot
-            for plot in self.plots_string.split(" ")
-            if plot.split(".")[-1] in ["png", "jpg", "jpeg", "svg"]
-        ]
-
-        self._variables_deviation_df = None
-
-    # Status strings for file comparison table
-    STATUS_FILE_MISSING = " :warning: Missing"
-    STATUS_EQUAL = ":white_check_mark: Equal"
-    STATUS_TYPE_MISMATCH = ":warning: Type mismatch"
-    STATUS_NAN_MISMATCH = ":warning: NaN mismatch"
-    STATUS_INF_MISMATCH = ":warning: Inf mismatch"
-    STATUS_CHANGED_NUMERIC = ":warning:Changed"
-    STATUS_CHANGED_NON_NUMERIC = ":warning: Changed (non-numeric data)"
-    STATUS_ALMOST_EQUAL = ":white_check_mark: Almost equal"
-    STATUS_NEW = ":warning: New"
+    """
 
     VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
-    VARIABLES_THRESHOLD = 2
+    NRMSE_NORMALIZATION_METHOD = "combined-min-max"
+    VARIABLES_THRESHOLD = 0.3
+
+    _variables_deviation_df = None
+
+    @staticmethod
+    def get_deviation_df(
+        df1: pd.DataFrame, df2: pd.DataFrame, nrmse_normalization_method: str
+    ) -> pd.DataFrame:
+        """Calculate deviation dataframe between two dataframes."""
+        nrmse_series = df1.apply(
+            lambda row: normalized_root_mean_square_error(
+                row.values,
+                df2.loc[row.name].values,
+                normalization=nrmse_normalization_method,
+            ),
+            axis=1,
+        )
+        pearson_series = df1.apply(
+            lambda row: np.corrcoef(row.values, df2.loc[row.name].values)[0, 1],
+            axis=1,
+        ).fillna(0)
+
+        if df1.empty:
+            return pd.DataFrame(columns=["NRMSE", "Pearson"])
+        else:
+            deviation_df = pd.DataFrame(
+                {"NRMSE": nrmse_series, "Pearson": pearson_series}
+            ).sort_values(by="NRMSE", ascending=False)
+
+            return deviation_df
 
     @property
-    def variables_deviation_df(self):
+    def variables_deviation_df(self) -> pd.DataFrame:
         """Get the deviation dataframe for variables."""
         if self._variables_deviation_df is not None:
             return self._variables_deviation_df
@@ -196,7 +205,9 @@ class RunSuccessfullComponent(CommentData):
 
         assert vars1.index.equals(vars2.index)
 
-        deviation_df = get_deviation_df(vars1, vars2)
+        deviation_df = self.get_deviation_df(
+            vars1, vars2, nrmse_normalization_method=self.NRMSE_NORMALIZATION_METHOD
+        )
 
         # Filter for threshold
         deviation_df = deviation_df.loc[
@@ -206,8 +217,7 @@ class RunSuccessfullComponent(CommentData):
         self._variables_deviation_df = deviation_df
         return self._variables_deviation_df
 
-    @property
-    def variables_plot_strings(self):
+    def variables_plot_strings(self) -> list:
         """Return list of variable plot strings."""
         plots = (
             self.variables_deviation_df.index.to_series()
@@ -249,7 +259,7 @@ class RunSuccessfullComponent(CommentData):
             return ""
 
         rows: list = []
-        for plot in self.variables_plot_strings:
+        for plot in self.variables_plot_strings():
             url_a = self.plots_base_url + "main/" + plot
             url_b = self.plots_base_url + "feature/" + plot
             rows.append(
@@ -264,6 +274,45 @@ class RunSuccessfullComponent(CommentData):
             columns=pd.Index(["Main branch", "Feature branch"]),
         )
         return df.to_html(escape=False, index=False) + "\n"
+
+    @property
+    def body(self) -> str:
+        if self.variables_comparison and self.changed_variables_plots:
+            if self.variables_deviation_df.empty:
+                return (
+                    "**Ariadne Variables**\n"
+                    "No significant changes in variables detected. :white_check_mark:\n"
+                    "\n\n"
+                )
+            else:
+                comparison_block = create_details_block(
+                    "Comparison", self.variables_comparison
+                )
+                details_block = create_details_block(
+                    "Plots", self.changed_variables_plots
+                )
+                return f"**Ariadne Variables**\n{comparison_block}{details_block}"
+
+        elif self.variables_comparison or str(_Variables.changed_variables_plots):
+            raise ValueError(
+                "Both variables_comparison and changed_variables_plots must be set or "
+                "unset."
+            )
+        else:
+            return ""
+
+
+class _General(CommentData):
+    # Status strings for file comparison table
+    STATUS_FILE_MISSING = " :warning: Missing"
+    STATUS_EQUAL = ":white_check_mark: Equal"
+    STATUS_TYPE_MISMATCH = ":warning: Type mismatch"
+    STATUS_NAN_MISMATCH = ":warning: NaN mismatch"
+    STATUS_INF_MISMATCH = ":warning: Inf mismatch"
+    STATUS_CHANGED_NUMERIC = ":warning:Changed"
+    STATUS_CHANGED_NON_NUMERIC = ":warning: Changed (non-numeric data)"
+    STATUS_ALMOST_EQUAL = ":white_check_mark: Almost equal"
+    STATUS_NEW = ":warning: New"
 
     @property
     def plots_table(self) -> str:
@@ -306,11 +355,11 @@ class RunSuccessfullComponent(CommentData):
 
         # Make non-numeric values the index
         non_numeric = df.apply(
-            lambda col: pd.to_numeric(col, errors="coerce").isna().all()  # type: ignore
+            lambda col: pd.to_numeric(col, errors="coerce").isna().all()
         )
 
         if non_numeric.any():
-            df = df.set_index(df.columns[non_numeric].to_list())  # type: ignore
+            df = df.set_index(df.columns[non_numeric].to_list())
         else:
             df = df.set_index("planning_horizon")
 
@@ -325,6 +374,8 @@ class RunSuccessfullComponent(CommentData):
     @property
     def files_table(self) -> str:
         """Files comparison table."""
+        nrmse_normalization_method = "combined-min-max"
+
         rows = {}
 
         # Loop through all files in main dir
@@ -391,7 +442,7 @@ class RunSuccessfullComponent(CommentData):
                     arr2_num = pd.to_numeric(df2.to_numpy()[numeric_mask])
 
                     nrmse = normalized_root_mean_square_error(
-                        arr1_num, arr2_num, normalization="min-max"
+                        arr1_num, arr2_num, normalization=nrmse_normalization_method
                     )
                     mae_n = min_max_normalized_mae(arr1_num, arr2_num)
 
@@ -449,52 +500,38 @@ class RunSuccessfullComponent(CommentData):
         return (
             f"{df.to_html(escape=False)}\n"
             f"\n"
-            f"NRMSE: Normalized (min-max) Root Mean Square Error\n"
+            f"NRMSE: Normalized ({nrmse_normalization_method}) Root Mean Square Error\n"
             f"MAE (norm): Mean Absolute Error on normalized Data (min-max\n"
             f"Status Threshold: MAE (norm) > 0.05 and NRMSE > 2\n"
         )
 
     @property
     def body(self) -> str:
-        """Body text for successfull run."""
-        if self.variables_comparison and self.changed_variables_plots:
-            if self.variables_deviation_df.empty:
-                variables_txt = (
-                    "**Ariadne Variables**\n"
-                    "No significant changes in variables detected. :white_check_mark:\n"
-                    "\n\n"
-                )
-            else:
-                variables_txt = (
-                    f"**Ariadne Variables**\n"
-                    f"{create_details_block('Comparison', self.variables_comparison)}"
-                    f"{create_details_block('Plots', self.changed_variables_plots)}"
-                )
-        elif self.variables_comparison or self.changed_variables_plots:
-            raise ValueError(
-                "Both variables_comparison and changed_variables_plots must be set or "
-                "unset."
-            )
-        else:
-            variables_txt = ""
+        """Body text for general component."""
         return (
-            f"{variables_txt}"
             f"**General**\n"
             f"{create_details_block('Plots comparison', self.plots_table)}"
             f"{create_details_block('Files comparison', self.files_table)}"
         )
+
+
+class RunSuccessfull(CommentData):
+    """Class to generate successfull run component."""
+
+    @property
+    def body(self) -> str:
+        """Body text for successfull run."""
+        variables = _Variables()
+        general = _General()
+        return f"{variables.body}{general.body}"
 
     def __call__(self) -> str:
         """Return text for successfull run component."""
         return self.body
 
 
-class RunFailedComponent(CommentData):
+class RunFailed(CommentData):
     """Class to generate failed run component."""
-
-    def __init__(self):
-        """Initialize failed run component."""
-        super().__init__()
 
     def body(self) -> str:
         """Body text for failed run."""
@@ -527,12 +564,8 @@ class RunFailedComponent(CommentData):
         return self.body()
 
 
-class ModelMetricsComponent(CommentData):
+class ModelMetrics(CommentData):
     """Class to generate model metrics component."""
-
-    def __init__(self):
-        """Initialize model metrics component."""
-        super().__init__()
 
     @property
     def benchmark_plots(self) -> str:
