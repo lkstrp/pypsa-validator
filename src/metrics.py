@@ -4,7 +4,9 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 
-def min_max_normalized_mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
+def min_max_normalized_mae(
+    y_true: ArrayLike, y_pred: ArrayLike, round_by: int = 5
+) -> float:
     """
     Calculate the min-max normalized Mean Absolute Error (MAE).
 
@@ -12,9 +14,10 @@ def min_max_normalized_mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
     ----------
     y_true : array-like
         True values
-
     y_pred : array-like
         Predicted values
+    round_by : int, optional (default=5)
+        Number of decimal places to round the input values
 
     Returns
     -------
@@ -23,6 +26,10 @@ def min_max_normalized_mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
     """
     y_true_ = np.array(y_true)
     y_pred_ = np.array(y_pred)
+
+    if round_by:
+        y_true_ = np.round(y_true_, round_by)
+        y_pred_ = np.round(y_pred_, round_by)
 
     # Ignore -inf and inf values in y_true
     y_true_ = y_true_[np.isfinite(y_true_)]
@@ -97,6 +104,7 @@ def normalized_root_mean_square_error(
     y_pred: ArrayLike,
     ignore_inf: bool = True,
     normalization: str = "min-max",
+    round_by: int = 5,
     fill_na: float = 0,
     epsilon: float = 1e-9,
 ) -> float:
@@ -113,6 +121,8 @@ def normalized_root_mean_square_error(
         If True, ignore infinite values in the calculation
     normalization : str, optional (default='min-max')
         Method of normalization. Options: 'mean', 'range', 'iqr', 'min-max'
+    round_by : int, optional (default=5)
+        Number of decimal places to round the input values
     fill_na : float, optional (default=0)
         Value to replace NaN values
     epsilon : float, optional (default=1e-9)
@@ -125,6 +135,10 @@ def normalized_root_mean_square_error(
     """
     y_true_ = np.array(y_true)
     y_pred_ = np.array(y_pred)
+
+    if round_by:
+        y_true_ = np.round(y_true_, round_by)
+        y_pred_ = np.round(y_pred_, round_by)
 
     if np.array_equal(y_true_, y_pred_):
         return 0
@@ -148,6 +162,8 @@ def normalized_root_mean_square_error(
     # Normalize RMSE
     if normalization == "mean":
         normalization_factor = np.mean(y_true_)
+    if normalization == "combined-mean":
+        normalization_factor = (np.mean(y_true_) + np.mean(y_pred_)) / 2.0
     elif normalization == "range":
         normalization_factor = np.ptp(y_true_)
     elif normalization == "iqr":
@@ -155,6 +171,13 @@ def normalized_root_mean_square_error(
         normalization_factor = q75 - q25
     elif normalization == "min-max":
         normalization_factor = np.max(y_true_) - np.min(y_true_) + epsilon
+    elif normalization == "combined-min-max":
+        normalization_factor = (
+            np.max(np.concatenate([y_true_, y_pred_]))
+            - np.min(np.concatenate([y_true_, y_pred_]))
+            + epsilon
+        )
+
     else:
         raise ValueError("Invalid normalization method.")
 
