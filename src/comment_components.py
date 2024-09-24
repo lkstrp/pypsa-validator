@@ -158,15 +158,23 @@ class _Variables(CommentData):
 
     VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
     NRMSE_NORMALIZATION_METHOD = "combined-min-max"
-    NRMSE_THRESHOLD = 0.3
+    NRMSE_THRESHOLD = 0.1
+    NRMSE_MINIMUM_THRESHOLD = 1e-3
+    MAX_PLOTS = 20
 
     _variables_deviation_df = None
 
-    @staticmethod
     def get_deviation_df(
-        df1: pd.DataFrame, df2: pd.DataFrame, nrmse_normalization_method: str
+        self, df1: pd.DataFrame, df2: pd.DataFrame, nrmse_normalization_method: str
     ) -> pd.DataFrame:
         """Calculate deviation dataframe between two dataframes."""
+        # Remove all variables smaller than minimum threshold
+        minimum_mask = ((df1.abs() < self.NRMSE_MINIMUM_THRESHOLD).all(axis=1)) & (
+            (df2.abs() < self.NRMSE_MINIMUM_THRESHOLD).all(axis=1)
+        )
+        df1 = df1.loc[~minimum_mask]
+        df2 = df2.loc[~minimum_mask]
+
         nrmse_series = df1.apply(
             lambda row: normalized_root_mean_square_error(
                 row.values,
@@ -182,12 +190,12 @@ class _Variables(CommentData):
 
         if df1.empty:
             return pd.DataFrame(columns=["NRMSE", "Pearson"])
-        else:
-            deviation_df = pd.DataFrame(
-                {"NRMSE": nrmse_series, "Pearson": pearson_series}
-            ).sort_values(by="NRMSE", ascending=False)
 
-            return deviation_df
+        deviation_df = pd.DataFrame(
+            {"NRMSE": nrmse_series, "Pearson": pearson_series}
+        ).sort_values(by="NRMSE", ascending=False)
+
+        return deviation_df
 
     @property
     def variables_deviation_df(self) -> pd.DataFrame:
@@ -216,13 +224,13 @@ class _Variables(CommentData):
         return self._variables_deviation_df
 
     def variables_plot_strings(self) -> list:
-        """Return list of variable plot strings."""
+        """Return list of variable plot strings. Maximum defined by MAX_PLOTS."""
         plots = (
             self.variables_deviation_df.index.to_series()
             .apply(lambda x: re.sub(r"[ |/]", "-", x))
             .apply(lambda x: "ariadne_comparison/" + x + ".png")
             .to_list()
-        )
+        )[: self.MAX_PLOTS]
         return plots
 
     @property
@@ -272,7 +280,17 @@ class _Variables(CommentData):
             rows,
             columns=pd.Index(["Main branch", "Feature branch"]),
         )
-        return df.to_html(escape=False, index=False) + "\n"
+
+        if len(df) > self.MAX_PLOTS:
+            df = df.iloc[: self.MAX_PLOTS]
+            annotation = (
+                f":warning: Note: Only the first {self.MAX_PLOTS} variables are shown, "
+                "but more are above the threshold. Find all of them in the artifacts."
+            )
+        else:
+            annotation = ""
+
+        return df.to_html(escape=False, index=False) + "\n" + annotation + "\n"
 
     @property
     def body(self) -> str:
