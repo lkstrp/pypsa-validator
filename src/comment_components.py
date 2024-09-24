@@ -160,6 +160,7 @@ class _Variables(CommentData):
     NRMSE_NORMALIZATION_METHOD = "combined-min-max"
     NRMSE_THRESHOLD = 0.1
     NRMSE_MINIMUM_THRESHOLD = 1e-3
+    MAX_PLOTS = 20
 
     _variables_deviation_df = None
 
@@ -223,13 +224,13 @@ class _Variables(CommentData):
         return self._variables_deviation_df
 
     def variables_plot_strings(self) -> list:
-        """Return list of variable plot strings."""
+        """Return list of variable plot strings. Maximum defined by MAX_PLOTS."""
         plots = (
             self.variables_deviation_df.index.to_series()
             .apply(lambda x: re.sub(r"[ |/]", "-", x))
             .apply(lambda x: "ariadne_comparison/" + x + ".png")
             .to_list()
-        )
+        )[: self.MAX_PLOTS]
         return plots
 
     @property
@@ -280,11 +281,11 @@ class _Variables(CommentData):
             columns=pd.Index(["Main branch", "Feature branch"]),
         )
 
-        if len(df) >= 20:
-            df = df.iloc[:20]
+        if len(df) > self.MAX_PLOTS:
+            df = df.iloc[: self.MAX_PLOTS]
             annotation = (
-                ":warning: Note: Only the first 20 variables are shown, but more are above "
-                "the threshold. Find all of them in the artifacts."
+                f":warning: Note: Only the first {self.MAX_PLOTS} variables are shown, "
+                "but more are above the threshold. Find all of them in the artifacts."
             )
         else:
             annotation = ""
