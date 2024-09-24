@@ -190,11 +190,11 @@ class _Variables(CommentData):
         if df1.empty:
             return pd.DataFrame(columns=["NRMSE", "Pearson"])
 
-            deviation_df = pd.DataFrame(
-                {"NRMSE": nrmse_series, "Pearson": pearson_series}
-            ).sort_values(by="NRMSE", ascending=False)
+        deviation_df = pd.DataFrame(
+            {"NRMSE": nrmse_series, "Pearson": pearson_series}
+        ).sort_values(by="NRMSE", ascending=False)
 
-            return deviation_df
+        return deviation_df
 
     @property
     def variables_deviation_df(self) -> pd.DataFrame:
