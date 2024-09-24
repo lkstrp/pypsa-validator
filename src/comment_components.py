@@ -158,15 +158,22 @@ class _Variables(CommentData):
 
     VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
     NRMSE_NORMALIZATION_METHOD = "combined-min-max"
-    NRMSE_THRESHOLD = 0.3
+    NRMSE_THRESHOLD = 0.1
+    NRMSE_MINIMUM_THRESHOLD = 1e-3
 
     _variables_deviation_df = None
 
-    @staticmethod
     def get_deviation_df(
-        df1: pd.DataFrame, df2: pd.DataFrame, nrmse_normalization_method: str
+        self, df1: pd.DataFrame, df2: pd.DataFrame, nrmse_normalization_method: str
     ) -> pd.DataFrame:
         """Calculate deviation dataframe between two dataframes."""
+        # Remove all variables smaller than minimum threshold
+        minimum_mask = ((df1.abs() < self.NRMSE_MINIMUM_THRESHOLD).all(axis=1)) & (
+            (df2.abs() < self.NRMSE_MINIMUM_THRESHOLD).all(axis=1)
+        )
+        df1 = df1.loc[~minimum_mask]
+        df2 = df2.loc[~minimum_mask]
+
         nrmse_series = df1.apply(
             lambda row: normalized_root_mean_square_error(
                 row.values,
@@ -182,12 +189,12 @@ class _Variables(CommentData):
 
         if df1.empty:
             return pd.DataFrame(columns=["NRMSE", "Pearson"])
-        else:
-            deviation_df = pd.DataFrame(
-                {"NRMSE": nrmse_series, "Pearson": pearson_series}
-            ).sort_values(by="NRMSE", ascending=False)
 
-            return deviation_df
+        deviation_df = pd.DataFrame(
+            {"NRMSE": nrmse_series, "Pearson": pearson_series}
+        ).sort_values(by="NRMSE", ascending=False)
+
+        return deviation_df
 
     @property
     def variables_deviation_df(self) -> pd.DataFrame:
@@ -272,7 +279,17 @@ class _Variables(CommentData):
             rows,
             columns=pd.Index(["Main branch", "Feature branch"]),
         )
-        return df.to_html(escape=False, index=False) + "\n"
+
+        if len(df) >= 20:
+            df = df.iloc[:20]
+            annotation = (
+                ":warning: Note: Only the first 20 variables are shown, but more are above "
+                "the threshold. Find all of them in the artifacts."
+            )
+        else:
+            annotation = ""
+
+        return df.to_html(escape=False, index=False) + "\n" + annotation + "\n"
 
     @property
     def body(self) -> str:
