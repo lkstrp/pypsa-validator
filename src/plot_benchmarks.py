@@ -37,7 +37,9 @@ def read_benchmark_dir(directory: Path) -> pd.DataFrame:
                 continue
             filepath = os.path.join(root, file)
             df = pd.read_csv(filepath, sep="\t")
-            df["name"] = "/".join(os.path.relpath(filepath, directory).split("/")[2:])
+            df["name"] = "/".join(
+                str(os.path.relpath(filepath, directory)).split("/")[1:]
+            )
             data.append(df)
     return pd.concat(data, ignore_index=True)
 
@@ -105,12 +107,12 @@ def create_bar_chart_comparison(
 
     """
     if ignore_stacked_plot:
-        fig, ax1 = plt.subplots(figsize=(8, max(6, len(df["name"].unique()) * 0.4)))
+        fig, ax1 = plt.subplots(figsize=(8, max(6, len(df["name"].unique()) / 2)))
     else:
         fig, (ax1, ax2) = plt.subplots(
             1,
             2,
-            figsize=(10, max(8, len(df["name"].unique()) * 0.4)),
+            figsize=(10, max(8, len(df["name"].unique()) / 2)),
             gridspec_kw={"width_ratios": [3, 1]},
         )
 
@@ -146,10 +148,11 @@ def create_bar_chart_comparison(
     ax1.set_title(f"{title} - Detailed Comparison")
     ax1.set_xlabel(xlabel)
     ax1.set_ylabel("Benchmark")
+    ax1.margins(y=0)  # Remove vertical margins
     if not ignore_stacked_plot:
         # Two single vertical bars
         totals = df.groupby("run")[x_column].sum()
-        bar_width = 0.8
+        bar_width = 1
         index = np.arange(len(totals))
 
         for i, run in enumerate(totals.index):
@@ -173,6 +176,7 @@ def create_bar_chart_comparison(
             ax2.set_xlabel("Run")
             ax2.set_xticks(index)
             ax2.set_xticklabels(totals.index)
+            ax1.margins(y=0)
 
             # Remove all spines
             for spine in ax2.spines.values():

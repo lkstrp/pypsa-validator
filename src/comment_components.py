@@ -158,15 +158,22 @@ class _Variables(CommentData):
 
     VARIABLES_FILE = "KN2045_Bal_v4/ariadne/exported_variables_full.xlsx"
     NRMSE_NORMALIZATION_METHOD = "combined-min-max"
-    VARIABLES_THRESHOLD = 0.3
+    NRMSE_THRESHOLD = 0.1
+    NRMSE_MINIMUM_THRESHOLD = 1e-3
 
     _variables_deviation_df = None
 
-    @staticmethod
     def get_deviation_df(
-        df1: pd.DataFrame, df2: pd.DataFrame, nrmse_normalization_method: str
+        self, df1: pd.DataFrame, df2: pd.DataFrame, nrmse_normalization_method: str
     ) -> pd.DataFrame:
         """Calculate deviation dataframe between two dataframes."""
+        # Remove all variables smaller than minimum threshold
+        minimum_mask = ((df1.abs() < self.NRMSE_MINIMUM_THRESHOLD).all(axis=1)) & (
+            (df2.abs() < self.NRMSE_MINIMUM_THRESHOLD).all(axis=1)
+        )
+        df1 = df1.loc[~minimum_mask]
+        df2 = df2.loc[~minimum_mask]
+
         nrmse_series = df1.apply(
             lambda row: normalized_root_mean_square_error(
                 row.values,
@@ -182,7 +189,7 @@ class _Variables(CommentData):
 
         if df1.empty:
             return pd.DataFrame(columns=["NRMSE", "Pearson"])
-        else:
+
             deviation_df = pd.DataFrame(
                 {"NRMSE": nrmse_series, "Pearson": pearson_series}
             ).sort_values(by="NRMSE", ascending=False)
@@ -210,9 +217,7 @@ class _Variables(CommentData):
         )
 
         # Filter for threshold
-        deviation_df = deviation_df.loc[
-            deviation_df["NRMSE"] > self.VARIABLES_THRESHOLD
-        ]
+        deviation_df = deviation_df.loc[deviation_df["NRMSE"] > self.NRMSE_THRESHOLD]
 
         self._variables_deviation_df = deviation_df
         return self._variables_deviation_df
@@ -242,9 +247,10 @@ class _Variables(CommentData):
         return (
             f"{df.to_html(escape=False)}\n"
             f"\n"
-            f"NRMSE: Normalized (min-max) Root Mean Square Error\n"
+            f"NRMSE: Normalized ({self.NRMSE_NORMALIZATION_METHOD}) Root Mean Square "
+            f"Error\n"
             f"Pearson: Pearson correlation coefficient\n"
-            f"Threshold: NRMSE > {self.VARIABLES_THRESHOLD}\n"
+            f"Threshold: NRMSE > {self.NRMSE_THRESHOLD}\n"
             f"Only variables reaching the threshold are shown. Find the equivalent "
             f"plot for all of them below.\n\n"
         )
@@ -273,7 +279,17 @@ class _Variables(CommentData):
             rows,
             columns=pd.Index(["Main branch", "Feature branch"]),
         )
-        return df.to_html(escape=False, index=False) + "\n"
+
+        if len(df) >= 20:
+            df = df.iloc[:20]
+            annotation = (
+                "Note: Only the first 20 variables are shown, but more are above "
+                "the threshold. Find all of them in the artifacts."
+            )
+        else:
+            annotation = ""
+
+        return df.to_html(escape=False, index=False) + "\n" + annotation + "\n"
 
     @property
     def body(self) -> str:
@@ -313,6 +329,10 @@ class _General(CommentData):
     STATUS_CHANGED_NON_NUMERIC = ":warning: Changed (non-numeric data)"
     STATUS_ALMOST_EQUAL = ":white_check_mark: Almost equal"
     STATUS_NEW = ":warning: New"
+
+    NRMSE_NORMALIZATION_METHOD = "combined-min-max"
+    NRMSE_THRESHOLD = 0.3
+    MAE_THRESHOLD = 0.05
 
     @property
     def plots_table(self) -> str:
@@ -374,8 +394,6 @@ class _General(CommentData):
     @property
     def files_table(self) -> str:
         """Files comparison table."""
-        nrmse_normalization_method = "combined-min-max"
-
         rows = {}
 
         # Loop through all files in main dir
@@ -442,13 +460,15 @@ class _General(CommentData):
                     arr2_num = pd.to_numeric(df2.to_numpy()[numeric_mask])
 
                     nrmse = normalized_root_mean_square_error(
-                        arr1_num, arr2_num, normalization=nrmse_normalization_method
+                        arr1_num,
+                        arr2_num,
+                        normalization=self.NRMSE_NORMALIZATION_METHOD,
                     )
                     mae_n = min_max_normalized_mae(arr1_num, arr2_num)
 
                     if not df1_des.equals(df2_des):
                         status = self.STATUS_CHANGED_NON_NUMERIC
-                    elif nrmse > 2 and mae_n > 0.05:
+                    elif nrmse > self.NRMSE_THRESHOLD or mae_n > self.MAE_THRESHOLD:
                         status = self.STATUS_CHANGED_NUMERIC
                     else:
                         status = self.STATUS_ALMOST_EQUAL
@@ -500,9 +520,11 @@ class _General(CommentData):
         return (
             f"{df.to_html(escape=False)}\n"
             f"\n"
-            f"NRMSE: Normalized ({nrmse_normalization_method}) Root Mean Square Error\n"
-            f"MAE (norm): Mean Absolute Error on normalized Data (min-max\n"
-            f"Status Threshold: MAE (norm) > 0.05 and NRMSE > 2\n"
+            f"NRMSE: Normalized ({self.NRMSE_NORMALIZATION_METHOD}) Root Mean Square "
+            f"Error\n"
+            f"MAE (norm): Mean Absolute Error on normalized data (min-max)\n"
+            f"Status Threshold: MAE (norm) > {self.MAE_THRESHOLD} and NRMSE > "
+            f"{self.NRMSE_THRESHOLD}\n"
         )
 
     @property
