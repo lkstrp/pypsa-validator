@@ -283,7 +283,7 @@ class _Variables(CommentData):
         if len(df) >= 20:
             df = df.iloc[:20]
             annotation = (
-                "Note: Only the first 20 variables are shown, but more are above "
+                ":warning: Note: Only the first 20 variables are shown, but more are above "
                 "the threshold. Find all of them in the artifacts."
             )
         else:
