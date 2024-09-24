@@ -223,13 +223,13 @@ class _Variables(CommentData):
         self._variables_deviation_df = deviation_df
         return self._variables_deviation_df
 
-    def variables_plot_strings(self, max_plots) -> list:
-        """Return list of variable plot strings."""
+    def variables_plot_strings(self) -> list:
+        """Return list of variable plot strings. Maximum defined by MAX_PLOTS."""
         plots = (
             self.variables_deviation_df.index.to_series()
             .apply(lambda x: re.sub(r"[ |/]", "-", x))
             .apply(lambda x: "ariadne_comparison/" + x + ".png")
-            .iloc[:max_plots]
+            .iloc[: self.MAX_PLOTS]
             .to_list()
         )
         return plots
@@ -267,7 +267,7 @@ class _Variables(CommentData):
             return ""
 
         rows: list = []
-        for plot in self.variables_plot_strings(max_plots=self.MAX_PLOTS):
+        for plot in self.variables_plot_strings():
             url_a = self.plots_base_url + "main/" + plot
             url_b = self.plots_base_url + "feature/" + plot
             rows.append(
@@ -285,8 +285,7 @@ class _Variables(CommentData):
         if len(df) == self.MAX_PLOTS:
             annotation = (
                 f":warning: Note: Only the first {self.MAX_PLOTS} variables are shown, "
-                "but there are more above the threshold. Find all of them in the "
-                "artifacts."
+                "but more are above the threshold. Find all of them in the artifacts."
             )
         else:
             annotation = ""
