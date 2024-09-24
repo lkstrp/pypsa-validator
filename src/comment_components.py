@@ -229,8 +229,9 @@ class _Variables(CommentData):
             self.variables_deviation_df.index.to_series()
             .apply(lambda x: re.sub(r"[ |/]", "-", x))
             .apply(lambda x: "ariadne_comparison/" + x + ".png")
+            .iloc[:max_plots]
             .to_list()
-        )[:max_plots]
+        )
         return plots
 
     @property
@@ -284,7 +285,8 @@ class _Variables(CommentData):
         if len(df) == self.MAX_PLOTS:
             annotation = (
                 f":warning: Note: Only the first {self.MAX_PLOTS} variables are shown, "
-                "but more are above the threshold. Find all of them in the artifacts."
+                "but there are more above the threshold. Find all of them in the "
+                "artifacts."
             )
         else:
             annotation = ""
