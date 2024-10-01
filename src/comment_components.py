@@ -310,11 +310,6 @@ class _Variables(CommentData):
                 )
                 return f"**Ariadne Variables**\n{comparison_block}{details_block}"
 
-        elif self.variables_comparison or str(_Variables.changed_variables_plots):
-            raise ValueError(
-                "Both variables_comparison and changed_variables_plots must be set or "
-                "unset."
-            )
         else:
             return ""
 
