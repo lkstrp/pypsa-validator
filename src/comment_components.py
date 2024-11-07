@@ -211,7 +211,9 @@ class _Variables(CommentData):
             :, [col for col in vars2.columns if str(col).replace(".", "", 1).isdigit()]
         ]
 
-        assert vars1.index.equals(vars2.index)
+        # Filter any new/ removed variables        
+        vars1 = vars1[vars1.index.isin(vars2.index)]
+        vars2 = vars2[vars2.index.isin(vars1.index)]
 
         deviation_df = self.get_deviation_df(
             vars1, vars2, nrmse_normalization_method=self.NRMSE_NORMALIZATION_METHOD
