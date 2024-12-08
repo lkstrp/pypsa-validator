@@ -1,15 +1,21 @@
-"""Utility functions for the pypsa validator python scripts."""
-
 import os
 from typing import Any
 
+URL_IMAGE_PLACEHOLDER = "<URL_IMAGE_PLACEHOLDER:{}>"
+REPORT_IDENTIFIER = "<!-- _val-bot-identifier_ -->"
 
-def get_env_var(var_name: str, default: Any = None) -> Any:
+
+def read_env_var(var_name: str, default: Any = None, optional: bool = False) -> Any:
     """Get environment variable or raise an error if not set and no default provided."""
     value = os.getenv(var_name, default)
-    if value == "" and default is None:
+
+    # Check if set
+    if not optional and value is None:
         msg = f"The environment variable '{var_name}' is not set."
         raise OSError(msg)
+
+    # Type conversions
     if str(value).lower() in ["true", "false"]:
-        return str(value).lower() == "true"
+        value = str(value).lower() == "true"
+
     return value
