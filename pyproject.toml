@@ -1,0 +1,44 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name="reporter"
+version="0.1.0"
+description = "Create PyPSA validation reports"
+authors = ["Lukas Trippe <lkstrp@pm.me>"]
+
+
+[tool.poetry.dependencies]
+python = "^3.7"
+# Add your specific dependencies here:
+requests = "^2.32.3"
+numpy = "^2.2.0"
+openpyxl = "^3.1.5"
+matplotlib = "^3.9.3"
+seaborn = "^0.13.2"
+GitPython = "^3.1.43"
+python-gitlab = "^5.1.0"
+# Add more as needed...
+
+
+# Formatter and linter settings
+[tool.ruff]
+extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = [
+    'F',   # pyflakes
+    'E',   # pycodestyle: Error
+    'W',   # pycodestyle: Warning
+    'I',   # isort
+    'D',   # pydocstyle
+    'UP',  # pyupgrade
+    'TID', # flake8-tidy-imports
+    'NPY', # numpy
+    'RUF013', # ruff
+]
+ignore = ['D203', 'D212', 'D400', 'ANN101', 'ANN204', 'PD901']
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
