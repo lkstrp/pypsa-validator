@@ -13,6 +13,7 @@ HASH_MAIN = read_env_var("HASH_MAIN")
 HASH_FEAT = read_env_var("HASH_FEAT")
 
 # Configuration
+RESULTS_SUBFOLDER = read_env_var("RESULTS_SUBFOLDER")
 PLOTS = read_env_var("PLOTS")
 
 

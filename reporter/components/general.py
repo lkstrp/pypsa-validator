@@ -3,7 +3,7 @@ import re
 import pandas as pd
 
 from reporter.components.utils import create_details_block
-from reporter.meta.config import PLOTS, PREFIX
+from reporter.meta.config import PLOTS, RESULTS_SUBFOLDER
 from reporter.utils import URL_IMAGE_PLACEHOLDER
 
 
@@ -15,8 +15,8 @@ def plots_table() -> str:
     for plot in plots_list:
         if not plot:
             continue
-        url_a = URL_IMAGE_PLACEHOLDER.format(f"main/results/{PREFIX}/{plot}")
-        url_b = URL_IMAGE_PLACEHOLDER.format(f"feat/results/{PREFIX}/{plot}")
+        url_a = URL_IMAGE_PLACEHOLDER.format(f"main/results/{RESULTS_SUBFOLDER}/{plot}")
+        url_b = URL_IMAGE_PLACEHOLDER.format(f"feat/results/{RESULTS_SUBFOLDER}/{plot}")
         rows.append(
             [
                 f'<img src="{url_a}" alt="Image not available">',
